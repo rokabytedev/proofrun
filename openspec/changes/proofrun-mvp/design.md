@@ -30,10 +30,10 @@ Proofrun fills this gap: a CLI + skill that gives agents a structured way to ver
 
 ## Config Schema
 
-The `proofrun.config.yaml` file is the central configuration. It is created once per project via `proofrun init --preset <name>` and committed to version control.
+The `.proofrun/config.yaml` file is the central configuration. It is created once per project via `proofrun init --preset <name>` and committed to version control.
 
 ```yaml
-# proofrun.config.yaml — complete schema with all fields
+# .proofrun/config.yaml — complete schema with all fields
 
 # ─── Platform ───────────────────────────────────────────────
 # Target platform for verification. Determines which simulator/device
@@ -178,7 +178,7 @@ app_knowledge:
 # can and cannot verify. If the file doesn't exist, the agent uses
 # the default boundaries-template.md bundled with the proofrun skill.
 boundaries:
-  path: ".proofrun/boundaries.md"  # Project-specific boundaries file.
+  path: ".proofrun/boundaries.md"  # Project-specific boundaries file (tracked in git).
                                    # Default: uses skill's references/boundaries-template.md
 
 # ─── Reports ───────────────────────────────────────────────
@@ -225,7 +225,7 @@ Every proofrun command outputs structured JSON to stdout. The CLI is built for a
   "ok": false,
   "command": "session.start",
   "data": null,
-  "error": "All simulator slots are locked. Waited 300s. Consider increasing simulator.pool_size in proofrun.config.yaml."
+  "error": "All simulator slots are locked. Waited 300s. Consider increasing simulator.pool_size in .proofrun/config.yaml."
 }
 ```
 
@@ -237,9 +237,9 @@ Every proofrun command outputs structured JSON to stdout. The CLI is built for a
 
 **Agent's job before:** Scan project files (package.json, app.json, etc.) to determine the correct preset name. The agent picks from the finite set of available presets.
 
-**CLI does:** Copies the preset YAML template to `proofrun.config.yaml`. Adds `.proofrun/` to `.gitignore`. Nothing else — no auto-detection, no smart defaults. The preset template has YAML comments guiding the agent on how to fill in project-specific fields.
+**CLI does:** Creates `.proofrun/` directory. Copies the preset YAML template to `.proofrun/config.yaml`. Adds `.proofrun/locks/`, `.proofrun/sessions/`, `.proofrun/reports/` to `.gitignore` (config.yaml and boundaries.md remain tracked). Nothing else — no auto-detection, no smart defaults. The preset template has YAML comments guiding the agent on how to fill in project-specific fields.
 
-**Agent's job after:** Read the generated config file. Fill in blank fields (bundle_id, display_name, etc.) using its knowledge of the project. Suggest the user review if unsure about any values.
+**Agent's job after:** Read `.proofrun/config.yaml`. Fill in blank fields (bundle_id, display_name, etc.) using its knowledge of the project. Suggest the user review if unsure about any values.
 
 ```json
 {
@@ -247,8 +247,9 @@ Every proofrun command outputs structured JSON to stdout. The CLI is built for a
   "command": "init",
   "data": {
     "preset": "expo",
-    "config_path": "proofrun.config.yaml",
-    "gitignore_updated": true
+    "config_path": ".proofrun/config.yaml",
+    "created_dirs": [".proofrun/"],
+    "gitignore_entries_added": [".proofrun/locks/", ".proofrun/sessions/", ".proofrun/reports/"]
   },
   "error": null
 }
@@ -272,7 +273,7 @@ Every proofrun command outputs structured JSON to stdout. The CLI is built for a
       {
         "name": "config",
         "status": "pass",
-        "detail": "proofrun.config.yaml found and valid"
+        "detail": ".proofrun/config.yaml found and valid"
       },
       {
         "name": "interaction_tool",
@@ -352,7 +353,7 @@ Note: `ok` is true even if some checks fail — the doctor command itself succee
 
 ### Command: `proofrun session stop`
 
-**Agent's job before:** Ensure all verification is complete (all ACs judged, report generated if desired).
+**Agent's job before:** Run `npx proofrun evidence` to confirm all ACs are judged. Generate report if desired.
 
 **CLI does:** Kill dev server process, close flock file descriptors (releasing locks), update session state to "stopped".
 
@@ -454,6 +455,14 @@ Note: `ok` is true even if some checks fail — the doctor command itself succee
       "element_strategy": "identifier",
       "testid_attribute": "testID"
     },
+    "simulator": {
+      "device_types": {
+        "default": "iPhone 16 Pro",
+        "narrow": "iPhone SE (3rd generation)",
+        "wide": "iPhone 16 Pro Max",
+        "tablet": "iPad Pro 13-inch (M4)"
+      }
+    },
     "boundaries": {
       "path": ".proofrun/boundaries.md",
       "fallback": "Use the default boundaries-template.md from the proofrun skill if the file does not exist."
@@ -465,6 +474,58 @@ Note: `ok` is true even if some checks fail — the doctor command itself succee
   "error": null
 }
 ```
+
+### Command: `proofrun evidence`
+
+**Agent's job before:** Nothing — calls this to check progress.
+
+**CLI does:** Read `evidence.json` from the active session. Scan all entries, group by AC number. For each AC, determine the latest judgment status. Return a summary the agent can compare against its internal AC list to identify gaps.
+
+**Agent's job after:** Compare the returned AC list against its own list of identified ACs. If any AC is missing from the evidence (no steps, no judgments), the agent still needs to verify it.
+
+```json
+{
+  "ok": true,
+  "command": "evidence",
+  "data": {
+    "session_id": "20260314-063200-a1b2c3",
+    "acs": [
+      {
+        "ac": 1,
+        "latest_status": "pass",
+        "judgments": 1,
+        "steps": 2,
+        "screenshots": 1,
+        "fixes": 0
+      },
+      {
+        "ac": 3,
+        "latest_status": "pass",
+        "judgments": 2,
+        "steps": 3,
+        "screenshots": 2,
+        "fixes": 1
+      },
+      {
+        "ac": 4,
+        "latest_status": "human_required",
+        "judgments": 1,
+        "steps": 0,
+        "screenshots": 0,
+        "fixes": 0
+      }
+    ],
+    "unassociated_entries": {
+      "notes": 2,
+      "steps": 1
+    },
+    "total_entries": 15
+  },
+  "error": null
+}
+```
+
+The agent identified 4 ACs but evidence only shows entries for AC 1, 3, and 4. The agent knows AC 2 still needs verification.
 
 ### Command: `proofrun step --ac <n> --description <text> --command <cmd>`
 
@@ -603,9 +664,9 @@ The report surfaces this full timeline per AC — stronger proof of work.
 
 ### Command: `proofrun report [--output <path>] [--open]`
 
-**Agent's job before:** Ensure all ACs have at least one judgment recorded.
+**Agent's job before:** Run `npx proofrun evidence` to check progress. Compare against its internal AC list. Verify all ACs have judgments before generating the report.
 
-**CLI does:** Read evidence.json, base64-encode screenshot files, render HTML template with injected data, write to output path, optionally open in browser.
+**CLI does:** Read evidence.json, base64-encode screenshot files, render HTML template with injected data, write to output path, optionally open in browser. The CLI generates the report from whatever evidence exists — it does not validate completeness (the agent does that).
 
 **Agent's job after:** Tell the user the report is ready. Provide the file path.
 
@@ -796,7 +857,7 @@ Exported from the interactive HTML report by the human reviewer.
 **Choice:** Separate `proofrun init` (once per project, creates config) from `proofrun session start` (once per verification run, acquires resources).
 
 ```
-proofrun init --preset expo          # Project-level, creates proofrun.config.yaml
+proofrun init --preset expo          # Project-level, creates .proofrun/config.yaml
 proofrun session start --change X    # Run-level, acquires simulator + port
 ```
 
@@ -1079,7 +1140,7 @@ proofrun/
 ├── templates/
 │   └── report.html           # Interactive HTML report template
 ├── examples/
-│   ├── proofrun.config.yaml  # Example config (annotated)
+│   ├── .proofrun/config.yaml  # Example config (annotated)
 │   └── sample-report.html    # Example output report
 ├── README.md
 ├── LICENSE                   # MIT
