@@ -1,10 +1,10 @@
 ## ADDED Requirements
 
 ### Requirement: Skill installable via skills.sh
-The proofrun skill MUST be installable via `npx skills add proofrun/proofrun` and discovered in the `skills/` directory of the repo.
+The proofrun skill MUST be installable via `npx skills add rokabytedev/proofrun` and discovered in the `skills/` directory of the repo.
 
 #### Scenario: Skill installation
-- **WHEN** a user runs `npx skills add proofrun/proofrun -g`
+- **WHEN** a user runs `npx skills add rokabytedev/proofrun -g`
 - **THEN** the skill MUST be installed to `~/.claude/skills/proofrun/` (or equivalent agent skill directory)
 - **AND** the agent MUST see `proofrun` in its available skills list
 

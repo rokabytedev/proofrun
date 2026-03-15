@@ -31,7 +31,7 @@
 - [ ] 4.2 Implement `proofrun screenshot <file> [--ac <n>] [--note <text>]` — copy image to session screenshots dir, append reference to evidence log
 - [ ] 4.3 Implement `proofrun judge --ac <n> --pass|--fail|--human <reasoning>` — record judgment in evidence log, replace previous judgment for same AC
 - [ ] 4.4 Implement `proofrun note <text>` — append freeform note to evidence log
-- [ ] 4.5 Implement `proofrun criteria <change-name>` — read change artifacts from configured source, output numbered AC list (MVP: OpenSpec adapter reads proposal + tasks + specs)
+- [ ] 4.5 Implement `proofrun context <change-name>` — read `proofrun.config.yaml`, replace `{{change}}` placeholders with the change name, and output structured JSON with: `change_context` (source, instructions, commands, artifact_paths based on config), `app_knowledge` (source, discovery_command, spec_path, instructions based on config), `interaction` (tool, element_strategy, testid_attribute), `boundaries` (path, fallback note), `session` (max_retries_per_ac). The CLI does NOT read any artifacts — it only translates config into instructions for the agent.
 
 ## 5. Report Generation
 
@@ -63,4 +63,4 @@
 - [ ] 8.5 Test `proofrun session stop` — verify locks released, dev server stopped
 - [ ] 8.6 Test concurrent sessions — two agents acquiring different simulator slots simultaneously
 - [ ] 8.7 Publish to npm (`npm publish`) and verify `npx proofrun --help` works
-- [ ] 8.8 Publish skill and verify `npx skills add proofrun/proofrun -g` installs correctly
+- [ ] 8.8 Publish skill and verify `npx skills add rokabytedev/proofrun -g` installs correctly

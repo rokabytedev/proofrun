@@ -7,7 +7,7 @@ Proofrun closes this loop: it gives AI agents a CLI tool and workflow skill to v
 ## What Changes
 
 - **CLI tool (`npx proofrun`)** — manages verification sessions (simulator/port lock acquisition, dev server lifecycle), records evidence (steps, screenshots, judgments), and generates interactive HTML reports
-- **Agent skill (`npx skills add proofrun/proofrun`)** — teaches the agent the verification workflow: when to trigger proofrun, how to read acceptance criteria, how to classify what can/can't be verified, how to explore the app and record clean evidence paths, how to handle human feedback
+- **Agent skill (`npx skills add rokabytedev/proofrun`)** — teaches the agent the verification workflow: when to trigger proofrun, how to read acceptance criteria, how to classify what can/can't be verified, how to explore the app and record clean evidence paths, how to handle human feedback
 - **Platform presets** — pre-configured defaults for common stacks (Expo, React Native CLI, Next.js, Flutter) so `proofrun init --preset expo` gets a project to working config with minimal effort
 - **AC source adapters** — pluggable system for reading acceptance criteria from different sources (OpenSpec, GitHub issues, plain markdown)
 - **Resource lock system** — flock-based lock management for concurrent agent access to simulators and ports
@@ -32,7 +32,7 @@ _(none — greenfield project)_
 ## Impact
 
 - **New npm package**: `proofrun` — published to npm, usable via `npx proofrun`
-- **New skill**: Published to skills.sh via `npx skills add proofrun/proofrun`
+- **New skill**: Published to skills.sh via `npx skills add rokabytedev/proofrun`
 - **Dependencies**: Node.js runtime. Simulator interaction tool (iosef recommended) installed separately.
 - **Platforms**: iOS first (via iosef), with adapter architecture for future Android/web support
-- **Repo**: Standalone at `github.com/proofrun/proofrun` (or similar)
+- **Repo**: Standalone at `github.com/rokabytedev/proofrun` (or similar)

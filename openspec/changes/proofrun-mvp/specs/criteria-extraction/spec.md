@@ -1,47 +1,69 @@
 ## ADDED Requirements
 
-### Requirement: Criteria extraction from configured source
-`proofrun criteria` MUST extract acceptance criteria from the configured AC source.
+### Requirement: Context command outputs instructions, not content
+`proofrun context <change>` MUST read the config and output structured JSON instructions telling the agent HOW to gather change context and app knowledge. It MUST NOT read or parse the change artifacts itself.
 
 #### Scenario: OpenSpec source
-- **WHEN** the config specifies `acceptance_criteria.source: openspec` and `proofrun criteria <change-name>` is run
-- **THEN** the CLI MUST read all artifacts in `openspec/changes/<change-name>/` (proposal, design, specs, tasks)
-- **AND** extract verifiable behavioral outcomes (UI states, navigation flows, element visibility, interactions)
-- **AND** output a numbered list of ACs with classification
+- **WHEN** the config specifies `change_context.source: openspec` and `proofrun context add-search` is run
+- **THEN** the CLI MUST output JSON with:
+  - `change_context.source`: "openspec"
+  - `change_context.change_name`: "add-search"
+  - `change_context.instructions`: human-readable instructions for the agent
+  - `change_context.commands`: array of CLI commands the agent can run (e.g., `openspec show add-search --json`)
+  - `change_context.artifact_paths`: array of file paths to read (with `{{change}}` replaced)
+- **AND** it MUST NOT read any of those files or run any of those commands
+
+#### Scenario: GitHub source
+- **WHEN** the config specifies `change_context.source: github`
+- **THEN** the CLI MUST output JSON with:
+  - `change_context.commands`: array containing the configured `github.issue_command` or `github.pr_command` with `{{change}}` replaced
+  - `change_context.instructions`: instructions to run the command and read the output
 
 #### Scenario: Markdown source
-- **WHEN** the config specifies `acceptance_criteria.source: markdown` with a file path
-- **THEN** the CLI MUST read the specified markdown file and extract checkboxes or structured criteria
+- **WHEN** the config specifies `change_context.source: markdown`
+- **THEN** the CLI MUST output JSON with:
+  - `change_context.artifact_paths`: array containing the configured `markdown.path` with `{{change}}` replaced
+  - `change_context.instructions`: instructions to read the file
 
 #### Scenario: Manual source
-- **WHEN** the config specifies `acceptance_criteria.source: manual`
-- **THEN** `proofrun criteria` MUST prompt for ACs to be provided (or accept via stdin)
+- **WHEN** the config specifies `change_context.source: manual`
+- **THEN** the CLI MUST output JSON with:
+  - `change_context.instructions`: generic guidance for the agent to gather context from git history, changed files, or conversation with the user
 
-### Requirement: AC classification
-Each extracted AC MUST be classified as agent-verifiable, human-required, or partial.
+### Requirement: App knowledge instructions
+`proofrun context` MUST include app knowledge instructions in its output.
 
-#### Scenario: Classification using boundaries
-- **WHEN** ACs are extracted
-- **THEN** each MUST be classified by checking against the boundaries reference file
-- **AND** the classification MUST be output alongside each AC:
-  - Agent-verifiable: checkable via screenshots, accessibility tree, element assertions
-  - Human-required: audio, haptics, performance, real-device APIs, subjective quality
-  - Partial: some aspects verifiable, others need human
+#### Scenario: OpenSpec specs as app knowledge
+- **WHEN** the config specifies `app_knowledge.source: openspec-specs`
+- **THEN** the output MUST include `app_knowledge` with:
+  - `discovery_command`: the configured command to list specs
+  - `spec_path`: where spec files live
+  - `instructions`: guidance on how to scan spec names and pick relevant ones
+  - `tips`: the configured tips text
 
-#### Scenario: Default to human-required when ambiguous
-- **WHEN** an AC does not clearly match either category
-- **THEN** it MUST default to human-required
+#### Scenario: No app knowledge source
+- **WHEN** the config specifies `app_knowledge.source: none`
+- **THEN** the output MUST include `app_knowledge` with generic guidance to explore the codebase and app
 
-### Requirement: App knowledge discovery
-The skill MUST instruct the agent to discover app knowledge (navigation, screen states, features) before verifying.
+### Requirement: Interaction tool info included
+`proofrun context` MUST include interaction tool configuration in its output.
 
-#### Scenario: OpenSpec-based app knowledge
-- **WHEN** the project uses OpenSpec with specs at `openspec/specs/`
-- **THEN** the agent MUST scan spec names (via `openspec list --specs` or `ls openspec/specs/`)
-- **AND** read the 2-3 most relevant specs for the ACs being verified
-- **AND** if a spec doesn't help, try another one
+#### Scenario: Interaction info
+- **WHEN** `proofrun context` is run
+- **THEN** the output MUST include `interaction` with: tool name, element_strategy, testid_attribute
+- **AND** this informs the agent which approach to use when interacting with the app
 
-#### Scenario: Non-OpenSpec app knowledge
-- **WHEN** the project does not use OpenSpec
-- **THEN** the agent MUST look for app knowledge in: README, docs/, CLAUDE.md, or other documentation
-- **AND** use the simulator interaction tool to explore the app as a fallback
+### Requirement: Boundaries info included
+`proofrun context` MUST include boundaries file path in its output.
+
+#### Scenario: Boundaries info
+- **WHEN** `proofrun context` is run
+- **THEN** the output MUST include `boundaries.path` pointing to the project's boundaries file
+- **AND** a `boundaries.fallback` note about using the default template if the file doesn't exist
+
+### Requirement: Session config included
+`proofrun context` MUST include session-relevant config in its output.
+
+#### Scenario: Session defaults
+- **WHEN** `proofrun context` is run
+- **THEN** the output MUST include `session.max_retries_per_ac` so the skill can reference it
