@@ -121,79 +121,57 @@ interaction:
                                    # Informational — included in `proofrun context` output.
 
 # ─── Change Context Source ─────────────────────────────────
-# Where to find acceptance criteria and change artifacts.
+# How the agent discovers and reads change specifications.
 # `proofrun context <change>` reads this config and returns
-# INSTRUCTIONS for the agent on how to gather context — it does
-# NOT read the artifacts itself.
+# these values with {{change}} replaced — it does NOT read
+# any artifacts itself. The agent already knows how to use
+# the spec system (OpenSpec, GitHub, etc.) from its own skills.
 change_context:
   source: openspec                 # openspec | github | markdown | manual
-                                   #
-                                   # openspec: Change artifacts at openspec/changes/<name>/
-                                   #   CLI outputs: artifact paths, openspec CLI commands
-                                   #
-                                   # github: Change described in a GitHub issue or PR
-                                   #   CLI outputs: gh CLI commands to fetch issue/PR body
-                                   #
-                                   # markdown: Change described in a markdown file
-                                   #   CLI outputs: file path to read
-                                   #
-                                   # manual: No structured source
-                                   #   CLI outputs: generic instructions for the agent
-                                   #   to gather context from git history / conversation
-
-  # Source-specific config (only the relevant source's fields are used):
-  openspec:
-    change_dir: "openspec/changes/{{change}}"
-                                   # Path template. {{change}} replaced with change name.
-    artifacts:                     # Which artifacts to read for change context.
-      - proposal.md
-      - design.md
-      - "specs/**/*.md"
-      - tasks.md
-
-  github:
-    issue_command: "gh issue view {{change}} --json title,body,labels"
-                                   # {{change}} = issue number or identifier
-    pr_command: "gh pr view {{change}} --json title,body,files"
-
-  markdown:
-    path: "docs/changes/{{change}}.md"
-                                   # {{change}} replaced with change name
+                                   # Tells the agent which spec system is in use.
+                                   # The agent should already have the relevant skill
+                                   # installed (e.g., OpenSpec skill, GitHub skill).
+  discovery_command: "openspec list --json"
+                                   # Command to list available changes/specs.
+                                   # Agent runs this to find what changes exist.
+                                   # {{change}} is NOT used here — this lists all.
+                                   # Examples:
+                                   #   OpenSpec: "openspec list --json"
+                                   #   GitHub: "gh issue list --json number,title,state"
+                                   #   Leave empty for manual source.
+  context_command: "openspec show {{change}} --json"
+                                   # Command to get details about a specific change.
+                                   # {{change}} replaced with the change name at runtime.
+                                   # Agent runs this and reads the full output.
+                                   # Examples:
+                                   #   OpenSpec: "openspec show {{change}} --json"
+                                   #   GitHub: "gh issue view {{change}} --json title,body"
+                                   #   Leave empty for manual source.
 
 # ─── App Knowledge Source ──────────────────────────────────
-# Where to find general app knowledge (navigation, screens, states,
-# features) — separate from change-specific context.
+# How the agent discovers general app knowledge (navigation,
+# screens, states, features) — separate from change-specific context.
 # The agent reads this to understand HOW THE APP WORKS before verifying.
-# `proofrun context` includes these instructions in its output.
+# `proofrun context` includes these values in its output.
 app_knowledge:
-  source: openspec-specs           # openspec-specs | docs | readme | none
-                                   #
-                                   # openspec-specs: Capability specs at openspec/specs/
-                                   #   CLI outputs: discovery command + path + tips
-                                   #
-                                   # docs: Documentation directory
-                                   #   CLI outputs: paths to scan
-                                   #
-                                   # readme: Just the README
-                                   #   CLI outputs: README path
-                                   #
-                                   # none: No structured knowledge source
-                                   #   CLI outputs: generic guidance to explore codebase
-
-  # Source-specific config:
-  openspec_specs:
-    discovery_command: "openspec list --specs"
-                                   # Command the agent runs to see available specs.
-    spec_path: "openspec/specs/"   # Where spec files live.
-    tips: >-
-      Spec names are descriptive (e.g. practice-session-ui, library-browser,
-      quick-settings-bar). Read the 2-3 most relevant to your acceptance criteria
-      for navigation and behavior context. If a spec doesn't help, try another.
-
-  docs:
-    paths:                         # Directories/files to scan for app knowledge.
-      - "docs/"
-      - "README.md"
+  source: openspec-specs           # Identifier for the knowledge source type.
+                                   # Informational — tells the agent what kind of
+                                   # knowledge system is available.
+  discovery_command: "openspec list --specs"
+                                   # Command to list available app knowledge entries.
+                                   # Agent runs this to see what's available, then
+                                   # picks and reads relevant entries.
+                                   # Examples:
+                                   #   OpenSpec specs: "openspec list --specs"
+                                   #   Directory listing: "ls docs/"
+                                   #   Leave empty if no structured knowledge.
+  tips: >-
+    Spec names are descriptive (e.g. practice-session-ui, library-browser,
+    quick-settings-bar). Read the 2-3 most relevant to your acceptance criteria
+    for navigation and behavior context. If a spec doesn't help, try another.
+                                   # Freeform guidance for the agent on how to use
+                                   # the knowledge source effectively. Included
+                                   # verbatim in `proofrun context` output.
 
 # ─── Boundaries ────────────────────────────────────────────
 # Path to the verification boundaries file. Defines what the agent
@@ -225,18 +203,22 @@ session:
 
 Every proofrun command outputs structured JSON to stdout. The CLI is built for agent consumption — no human-readable text, no color codes, no progress spinners. The only exception is `--help`, which outputs plain text (since agents read help as documentation).
 
+**Design principle — agent vs CLI responsibility:** The CLI is a dumb tool. It reads config, manages files, acquires locks, copies screenshots, renders templates. The agent provides all intelligence: deciding what to verify, how to navigate, what passes or fails, and what reasoning to record. Every command's input/output is designed with this boundary in mind.
+
+**Echo-back principle:** CLI responses echo back the agent's input values. This is intentional — the agent's tool call input may scroll out of its context window, so the response serves as a persistent record of what was recorded.
+
 **Envelope format:** Every response follows a common envelope:
 
 ```json
 {
-  "ok": true,                    // boolean — did the command succeed?
-  "command": "session.start",    // string — which command was run
-  "data": { ... },               // object — command-specific response payload
-  "error": null                  // string | null — error message if ok=false
+  "ok": true,
+  "command": "session.start",
+  "data": { ... },
+  "error": null
 }
 ```
 
-**Error responses:** When `ok` is false, `data` is null and `error` contains a human/agent-readable message:
+**Error responses:** When `ok` is false, `data` is null and `error` contains a message:
 
 ```json
 {
@@ -247,14 +229,17 @@ Every proofrun command outputs structured JSON to stdout. The CLI is built for a
 }
 ```
 
-**Exit codes:**
-- `0` — success (`ok: true`)
-- `1` — runtime error or failure (`ok: false`)
-- `2` — bad arguments / usage error (`ok: false`, `error` explains the issue)
+**Exit codes:** `0` = success, `1` = runtime error, `2` = bad arguments.
+
+---
 
 ### Command: `proofrun init --preset <name>`
 
-Creates `proofrun.config.yaml` from a preset template with auto-detected project values.
+**Agent's job before:** Scan project files (package.json, app.json, etc.) to determine the correct preset name. The agent picks from the finite set of available presets.
+
+**CLI does:** Copies the preset YAML template to `proofrun.config.yaml`. Adds `.proofrun/` to `.gitignore`. Nothing else — no auto-detection, no smart defaults. The preset template has YAML comments guiding the agent on how to fill in project-specific fields.
+
+**Agent's job after:** Read the generated config file. Fill in blank fields (bundle_id, display_name, etc.) using its knowledge of the project. Suggest the user review if unsure about any values.
 
 ```json
 {
@@ -263,26 +248,6 @@ Creates `proofrun.config.yaml` from a preset template with auto-detected project
   "data": {
     "preset": "expo",
     "config_path": "proofrun.config.yaml",
-    "auto_detected": {
-      "app.bundle_id": {
-        "value": "com.rokabyte.accent",
-        "source": "app.json → expo.ios.bundleIdentifier"
-      },
-      "app.display_name": {
-        "value": "Waader!",
-        "source": "app.json → expo.name"
-      },
-      "change_context.source": {
-        "value": "openspec",
-        "source": "openspec/ directory detected"
-      }
-    },
-    "placeholders": [
-      {
-        "field": "simulator.device_types.tablet",
-        "reason": "No tablet device type configured. Add manually if needed."
-      }
-    ],
     "gitignore_updated": true
   },
   "error": null
@@ -291,7 +256,11 @@ Creates `proofrun.config.yaml` from a preset template with auto-detected project
 
 ### Command: `proofrun doctor`
 
-Checks environment readiness. Returns all checks with pass/fail status.
+**Agent's job before:** Nothing — just calls the command.
+
+**CLI does:** Runs each check deterministically: config file exists and parses, interaction tool command exits 0, flock/lockfile available, dev server command exists, simulator slots counted.
+
+**Agent's job after:** Read check results. Install missing tools (using install hints). Fix config issues. Re-run doctor if needed.
 
 ```json
 {
@@ -332,7 +301,7 @@ Checks environment readiness. Returns all checks with pass/fail status.
       {
         "name": "flock",
         "status": "fail",
-        "detail": "flock not found. Install: brew install flock. Falling back to proper-lockfile.",
+        "detail": "flock not found. Falling back to proper-lockfile.",
         "install_hint": "brew install flock"
       }
     ]
@@ -341,11 +310,15 @@ Checks environment readiness. Returns all checks with pass/fail status.
 }
 ```
 
-Note: `ok` is true even if some checks are `warn` or `fail` — the doctor command itself succeeded. The agent reads `data.all_passed` and individual check statuses to decide how to proceed.
+Note: `ok` is true even if some checks fail — the doctor command itself succeeded. The agent reads `data.all_passed` and individual statuses.
 
 ### Command: `proofrun session start --change <name> [--device <type>]`
 
-Acquires simulator + port, starts dev server, creates session.
+**Agent's job before:** Determine the change name. The skill teaches: (1) if user specified a change, use it; (2) if agent just finished implementing a change, use that name from its own context; (3) run `npx proofrun context --list` to discover available changes; (4) if ambiguous, ask the user. Pick device type if layout-specific testing is needed.
+
+**CLI does:** Acquire simulator flock, acquire port flock, verify port is free via `lsof`, start dev server subprocess (pipe stdout to log file), wait for `ready_signal` in stdout, save session state.
+
+**Agent's job after:** Use the interaction tool to verify the app is running correctly on the acquired simulator/port. Proceed to verification.
 
 ```json
 {
@@ -371,8 +344,7 @@ Acquires simulator + port, starts dev server, creates session.
       "log_file": ".proofrun/sessions/20260314-063200-a1b2c3/server.log",
       "status": "ready"
     },
-    "session_dir": ".proofrun/sessions/20260314-063200-a1b2c3",
-    "state_file": ".proofrun/sessions/20260314-063200-a1b2c3/state.json"
+    "session_dir": ".proofrun/sessions/20260314-063200-a1b2c3"
   },
   "error": null
 }
@@ -380,7 +352,11 @@ Acquires simulator + port, starts dev server, creates session.
 
 ### Command: `proofrun session stop`
 
-Releases all resources, stops dev server.
+**Agent's job before:** Ensure all verification is complete (all ACs judged, report generated if desired).
+
+**CLI does:** Kill dev server process, close flock file descriptors (releasing locks), update session state to "stopped".
+
+**Agent's job after:** Confirm resources released. Proceed to share report with user.
 
 ```json
 {
@@ -393,8 +369,7 @@ Releases all resources, stops dev server.
       "port": 8091,
       "dev_server_pid": 74892
     },
-    "session_dir": ".proofrun/sessions/20260314-063200-a1b2c3",
-    "evidence_entries": 12,
+    "evidence_entries": 15,
     "duration_seconds": 342
   },
   "error": null
@@ -403,9 +378,8 @@ Releases all resources, stops dev server.
 
 ### Command: `proofrun session status`
 
-Shows current session state or pool availability.
+**CLI does:** Check for active session state file, read lock directory to count available/locked resources.
 
-**When a session is active:**
 ```json
 {
   "ok": true,
@@ -435,18 +409,18 @@ Shows current session state or pool availability.
 }
 ```
 
-**When no session is active:**
+### Command: `proofrun context --list`
+
+**CLI does:** Read config's `change_context.discovery_command`, output it. The CLI does NOT run the command — the agent runs it. This command exists to fill the "what changes are available?" gap in the workflow.
+
 ```json
 {
   "ok": true,
-  "command": "session.status",
+  "command": "context.list",
   "data": {
-    "active": false,
-    "session_id": null,
-    "pool": {
-      "simulators": { "available": 5, "total": 5, "locked_slots": [] },
-      "ports": { "available": 10, "total": 10, "locked_ports": [] }
-    }
+    "source": "openspec",
+    "discovery_command": "openspec list --json",
+    "instructions": "Run the discovery_command to see available changes. Pick the one to verify."
   },
   "error": null
 }
@@ -454,7 +428,11 @@ Shows current session state or pool availability.
 
 ### Command: `proofrun context <change-name>`
 
-Reads config and outputs instructions for the agent on how to gather change context and app knowledge.
+**Agent's job before:** Determine the change name (see session start flow).
+
+**CLI does:** Read config, replace `{{change}}` with the change name in `context_command`, assemble all config values into the response. Does NOT run any commands or read any files.
+
+**Agent's job after:** Run the `context_command` to read change artifacts. Run the `discovery_command` from `app_knowledge` to find relevant app knowledge. Read the boundaries file. The agent already knows how to use the spec system because it has the relevant skill installed.
 
 ```json
 {
@@ -464,22 +442,12 @@ Reads config and outputs instructions for the agent on how to gather change cont
     "change_context": {
       "source": "openspec",
       "change_name": "add-search",
-      "instructions": "Read all change artifacts to understand what was implemented and what to verify.",
-      "commands": [
-        "openspec show add-search --json"
-      ],
-      "artifact_paths": [
-        "openspec/changes/add-search/proposal.md",
-        "openspec/changes/add-search/design.md",
-        "openspec/changes/add-search/specs/**/*.md",
-        "openspec/changes/add-search/tasks.md"
-      ]
+      "context_command": "openspec show add-search --json"
     },
     "app_knowledge": {
       "source": "openspec-specs",
-      "instructions": "Scan capability specs to understand app navigation and behavior before verifying. Spec names are descriptive (e.g. practice-session-ui, library-browser). Read the 2-3 most relevant to your acceptance criteria. If a spec doesn't help, try another.",
       "discovery_command": "openspec list --specs",
-      "spec_path": "openspec/specs/"
+      "tips": "Spec names are descriptive (e.g. practice-session-ui, library-browser). Read the 2-3 most relevant to your acceptance criteria. If a spec doesn't help, try another."
     },
     "interaction": {
       "tool": "iosef",
@@ -488,7 +456,7 @@ Reads config and outputs instructions for the agent on how to gather change cont
     },
     "boundaries": {
       "path": ".proofrun/boundaries.md",
-      "fallback": "Use the default boundaries-template.md from the proofrun skill if the file at path does not exist."
+      "fallback": "Use the default boundaries-template.md from the proofrun skill if the file does not exist."
     },
     "session": {
       "max_retries_per_ac": 2
@@ -498,45 +466,13 @@ Reads config and outputs instructions for the agent on how to gather change cont
 }
 ```
 
-**With `manual` source (no structured spec):**
-```json
-{
-  "ok": true,
-  "command": "context",
-  "data": {
-    "change_context": {
-      "source": "manual",
-      "change_name": "add-search",
-      "instructions": "No structured spec source configured. To understand what to verify: check recent git commits (git log --oneline -20), read changed files (git diff main --name-only), and ask the user for acceptance criteria if unclear.",
-      "commands": [],
-      "artifact_paths": []
-    },
-    "app_knowledge": {
-      "source": "none",
-      "instructions": "No structured app knowledge source. Read README.md and any docs/ directory. Use the simulator interaction tool to explore the app's navigation and discover screens.",
-      "discovery_command": null,
-      "spec_path": null
-    },
-    "interaction": {
-      "tool": "iosef",
-      "element_strategy": "identifier",
-      "testid_attribute": "testID"
-    },
-    "boundaries": {
-      "path": ".proofrun/boundaries.md",
-      "fallback": "Use the default boundaries-template.md from the proofrun skill if the file at path does not exist."
-    },
-    "session": {
-      "max_retries_per_ac": 2
-    }
-  },
-  "error": null
-}
-```
+### Command: `proofrun step --ac <n> --description <text> --command <cmd>`
 
-### Command: `proofrun step <description> [--ac <n>]`
+**Agent's job before:** Explore the app using the interaction tool. Once the agent has confirmed a verification path, record the clean steps with both a human-readable description and the exact re-executable command.
 
-Records a verification step in the evidence log.
+**CLI does:** Append a step entry to evidence.json. Copies the agent's input verbatim.
+
+**Agent's job after:** Continue to next step or capture screenshot.
 
 ```json
 {
@@ -547,8 +483,8 @@ Records a verification step in the evidence log.
     "type": "step",
     "ac": 1,
     "description": "Navigate to Library tab",
+    "command": "iosef tap --identifier tab-bar-library",
     "timestamp": "2026-03-14T06:35:12Z",
-    "evidence_file": ".proofrun/sessions/20260314-063200-a1b2c3/evidence.json",
     "total_entries": 1
   },
   "error": null
@@ -557,7 +493,11 @@ Records a verification step in the evidence log.
 
 ### Command: `proofrun screenshot <file> [--ac <n>] [--note <text>]`
 
-Copies screenshot to session, records in evidence log.
+**Agent's job before:** Take the screenshot using the interaction tool (e.g., `iosef view`), get the file path.
+
+**CLI does:** Copy the image file to session screenshots directory. Record entry in evidence.json. The CLI is a file copier + evidence recorder.
+
+**Agent's job after:** Continue verification.
 
 ```json
 {
@@ -580,7 +520,11 @@ Copies screenshot to session, records in evidence log.
 
 ### Command: `proofrun judge --ac <n> --pass|--fail|--human <reasoning>`
 
-Records the agent's judgment for an acceptance criterion.
+**Agent's job before:** Analyze the evidence (screenshots, element assertions, logs) and determine pass/fail. Formulate reasoning.
+
+**CLI does:** Append a judgment entry to evidence.json. Does NOT replace previous judgments — all judgments are preserved for history. The report shows the full timeline.
+
+**Agent's job after:** If fail, consider fixing and re-judging. If pass, move to next AC.
 
 ```json
 {
@@ -592,7 +536,7 @@ Records the agent's judgment for an acceptance criterion.
     "ac": 1,
     "status": "pass",
     "reasoning": "Search bar found at (398, 98) via iosef find --identifier library-search-input. Screenshot confirms icon visible in top-right corner.",
-    "replaced_previous": false,
+    "judgment_sequence": 1,
     "timestamp": "2026-03-14T06:35:18Z",
     "total_entries": 3
   },
@@ -600,30 +544,47 @@ Records the agent's judgment for an acceptance criterion.
 }
 ```
 
-**When replacing a previous judgment (fix-and-retry):**
+`judgment_sequence` is the nth judgment for this AC (1 = first, 2 = second after a fix, etc.). The full history is preserved.
+
+### Command: `proofrun fix --ac <n> --description <text>`
+
+**Agent's job before:** Identify the bug from the failed judgment. Fix the code. This is the agent making actual code changes.
+
+**CLI does:** Append a fix entry to evidence.json. Records what the agent changed and why.
+
+**Agent's job after:** Wait for hot reload or relaunch app, then re-verify and record a new judgment.
+
 ```json
 {
   "ok": true,
-  "command": "judge",
+  "command": "fix",
   "data": {
-    "entry_id": 7,
-    "type": "judgment",
+    "entry_id": 6,
+    "type": "fix",
     "ac": 3,
-    "status": "pass",
-    "reasoning": "Fixed missing testID. Clear button now found and tapping resets search results.",
-    "replaced_previous": true,
-    "previous_status": "fail",
-    "previous_reasoning": "Clear button not found — missing testID on SearchBar clear icon.",
-    "timestamp": "2026-03-14T06:38:42Z",
-    "total_entries": 7
+    "description": "Added testID='library-search-clear' to SearchBar clear icon component",
+    "timestamp": "2026-03-14T06:37:30Z",
+    "total_entries": 6
   },
   "error": null
 }
 ```
 
+The evidence timeline for a fix-and-retry cycle looks like:
+```
+entry 4: judgment(ac=3, fail, "Clear button not found — missing testID")
+entry 5: step(ac=3, "Identified missing testID in SearchBar component")
+entry 6: fix(ac=3, "Added testID='library-search-clear' to clear icon")
+entry 7: step(ac=3, "Re-verified after fix", command="iosef find --identifier library-search-clear")
+entry 8: screenshot(ac=3, "Clear button now visible")
+entry 9: judgment(ac=3, pass, "Clear button found and working after fix")
+```
+
+The report surfaces this full timeline per AC — stronger proof of work.
+
 ### Command: `proofrun note <text>`
 
-Adds a freeform note to the evidence log.
+**CLI does:** Append a note entry to evidence.json.
 
 ```json
 {
@@ -642,7 +603,11 @@ Adds a freeform note to the evidence log.
 
 ### Command: `proofrun report [--output <path>] [--open]`
 
-Generates the interactive HTML report from session evidence.
+**Agent's job before:** Ensure all ACs have at least one judgment recorded.
+
+**CLI does:** Read evidence.json, base64-encode screenshot files, render HTML template with injected data, write to output path, optionally open in browser.
+
+**Agent's job after:** Tell the user the report is ready. Provide the file path.
 
 ```json
 {
@@ -658,14 +623,15 @@ Generates the interactive HTML report from session evidence.
       "fail": 1,
       "human_required": 1,
       "total_steps": 12,
-      "total_screenshots": 8
+      "total_screenshots": 8,
+      "total_fixes": 1
     },
     "acs": [
-      { "ac": 1, "status": "pass", "screenshots": 2 },
-      { "ac": 2, "status": "pass", "screenshots": 2 },
-      { "ac": 3, "status": "pass", "screenshots": 1 },
-      { "ac": 4, "status": "fail", "screenshots": 2 },
-      { "ac": 5, "status": "human_required", "screenshots": 0 }
+      { "ac": 1, "status": "pass", "judgments": 1, "screenshots": 2 },
+      { "ac": 2, "status": "pass", "judgments": 1, "screenshots": 2 },
+      { "ac": 3, "status": "pass", "judgments": 2, "fixes": 1, "screenshots": 3 },
+      { "ac": 4, "status": "fail", "judgments": 1, "screenshots": 2 },
+      { "ac": 5, "status": "human_required", "judgments": 1, "screenshots": 0 }
     ],
     "report_size_bytes": 2458320,
     "opened_in_browser": true
@@ -674,9 +640,11 @@ Generates the interactive HTML report from session evidence.
 }
 ```
 
+---
+
 ### Evidence File Schema: `evidence.json`
 
-The evidence file is the intermediate data store between evidence capture commands and report generation. Stored at `.proofrun/sessions/<id>/evidence.json`.
+Stored at `.proofrun/sessions/<id>/evidence.json`. Append-only log of all recorded evidence.
 
 ```json
 {
@@ -690,31 +658,42 @@ The evidence file is the intermediate data store between evidence capture comman
   "port": 8091,
   "entries": [
     {
-      "id": 1,
-      "type": "step",
-      "ac": 1,
+      "id": 1, "type": "step", "ac": 1,
       "description": "Navigate to Library tab",
+      "command": "iosef tap --identifier tab-bar-library",
       "timestamp": "2026-03-14T06:35:12Z"
     },
     {
-      "id": 2,
-      "type": "screenshot",
-      "ac": 1,
+      "id": 2, "type": "screenshot", "ac": 1,
       "stored_path": "screenshots/002-ac1.jpeg",
       "note": "Library screen with search bar visible",
       "timestamp": "2026-03-14T06:35:15Z"
     },
     {
-      "id": 3,
-      "type": "judgment",
-      "ac": 1,
-      "status": "pass",
-      "reasoning": "Search bar found at (398, 98) via iosef find --identifier library-search-input.",
+      "id": 3, "type": "judgment", "ac": 1,
+      "status": "pass", "judgment_sequence": 1,
+      "reasoning": "Search bar found at (398, 98).",
       "timestamp": "2026-03-14T06:35:18Z"
     },
     {
-      "id": 4,
-      "type": "note",
+      "id": 4, "type": "judgment", "ac": 3,
+      "status": "fail", "judgment_sequence": 1,
+      "reasoning": "Clear button not found — missing testID.",
+      "timestamp": "2026-03-14T06:36:00Z"
+    },
+    {
+      "id": 5, "type": "fix", "ac": 3,
+      "description": "Added testID='library-search-clear' to clear icon",
+      "timestamp": "2026-03-14T06:37:30Z"
+    },
+    {
+      "id": 6, "type": "judgment", "ac": 3,
+      "status": "pass", "judgment_sequence": 2,
+      "reasoning": "Clear button found and working after fix.",
+      "timestamp": "2026-03-14T06:38:42Z"
+    },
+    {
+      "id": 7, "type": "note",
       "text": "App is in Chinese locale.",
       "timestamp": "2026-03-14T06:35:20Z"
     }
@@ -724,7 +703,7 @@ The evidence file is the intermediate data store between evidence capture comman
 
 ### Session State File Schema: `state.json`
 
-Stored at `.proofrun/sessions/<id>/state.json`. Records session metadata and resource state.
+Stored at `.proofrun/sessions/<id>/state.json`.
 
 ```json
 {
@@ -754,34 +733,31 @@ Stored at `.proofrun/sessions/<id>/state.json`. Records session metadata and res
 
 ### Report Feedback Schema: `feedback.json`
 
-Exported from the interactive HTML report by the human reviewer. The agent reads this to address rejections.
+Exported from the interactive HTML report by the human reviewer.
 
 ```json
 {
   "session_id": "20260314-063200-a1b2c3",
   "change_name": "add-search",
   "reviewed_at": "2026-03-14T07:15:00Z",
-  "reviewer": "human",
   "acs": [
     {
       "ac": 1,
-      "original_status": "pass",
+      "agent_status": "pass",
       "review_status": "accepted",
       "comment": null,
       "annotations": []
     },
     {
       "ac": 4,
-      "original_status": "fail",
+      "agent_status": "fail",
       "review_status": "rejected",
-      "comment": "The button position is off — it should be right-aligned, not centered.",
+      "comment": "Button should be right-aligned, not centered.",
       "annotations": [
         {
           "type": "circle",
-          "screenshot_id": "006-ac4.jpeg",
-          "x": 220,
-          "y": 450,
-          "radius": 40,
+          "screenshot_entry_id": 10,
+          "x": 220, "y": 450, "radius": 40,
           "color": "#ff0000",
           "label": "Should be right-aligned"
         }
@@ -789,7 +765,7 @@ Exported from the interactive HTML report by the human reviewer. The agent reads
     },
     {
       "ac": 5,
-      "original_status": "human_required",
+      "agent_status": "human_required",
       "review_status": "accepted",
       "comment": "Audio plays correctly. Verified manually."
     }
