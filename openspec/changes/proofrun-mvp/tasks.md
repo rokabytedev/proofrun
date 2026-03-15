@@ -61,6 +61,6 @@
 - [x] 8.3 Test evidence capture flow — `step`, `screenshot`, `judge` commands produce valid evidence.json
 - [x] 8.4 Test `proofrun report` — verify HTML is generated, screenshots embedded, report opens in browser
 - [x] 8.5 Test `proofrun session stop` — verify locks released, dev server stopped
-- [ ] 8.6 Test concurrent sessions — two agents acquiring different simulator slots simultaneously
+- [x] 8.6 Test concurrent sessions — two agents acquiring different simulator slots simultaneously
 - [ ] 8.7 Publish to npm (`npm publish`) and verify `npx proofrun --help` works
 - [ ] 8.8 Publish skill and verify `npx skills add rokabytedev/proofrun -g` installs correctly

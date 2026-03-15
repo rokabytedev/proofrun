@@ -79,8 +79,13 @@ export function releaseLock(lock) {
 }
 
 export function isPortInUse(port) {
+  // Validate port is a safe integer to prevent command injection
+  const portNum = Number(port);
+  if (!Number.isInteger(portNum) || portNum < 1 || portNum > 65535) {
+    throw new Error(`Invalid port number: ${port}`);
+  }
   try {
-    execSync(`lsof -i :${port}`, { stdio: 'pipe' });
+    execSync(`lsof -i :${portNum}`, { stdio: 'pipe' });
     return true;
   } catch {
     return false;

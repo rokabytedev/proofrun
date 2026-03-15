@@ -55,11 +55,16 @@ export function registerDoctor(program) {
       // Check 4: Dev server command
       const devCmd = config.dev_server?.start?.split(' ')[0];
       if (devCmd) {
-        try {
-          execSync(`which ${devCmd}`, { stdio: 'pipe' });
-          checks.push({ name: 'dev_server', status: 'pass', detail: `${devCmd} found in PATH` });
-        } catch {
-          checks.push({ name: 'dev_server', status: 'fail', detail: `${devCmd} not found in PATH` });
+        // Validate command name contains only safe characters (alphanumeric, hyphens, dots, slashes)
+        if (/^[a-zA-Z0-9._\-/]+$/.test(devCmd)) {
+          try {
+            execSync(`which ${devCmd}`, { stdio: 'pipe' });
+            checks.push({ name: 'dev_server', status: 'pass', detail: `${devCmd} found in PATH` });
+          } catch {
+            checks.push({ name: 'dev_server', status: 'fail', detail: `${devCmd} not found in PATH` });
+          }
+        } else {
+          checks.push({ name: 'dev_server', status: 'fail', detail: `dev_server.start command name contains invalid characters: ${devCmd}` });
         }
       } else {
         checks.push({ name: 'dev_server', status: 'fail', detail: 'dev_server.start not configured' });

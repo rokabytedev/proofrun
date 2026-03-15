@@ -44,10 +44,20 @@ export function registerSession(program) {
       ensureSimLockFiles(lockDir, poolSize);
       ensurePortLockFiles(lockDir, portStart, portEnd);
 
-      // Acquire simulator slot
-      const simResult = acquireSimulatorSlot(lockDir, poolSize);
-      if (!simResult) {
-        error('session.start', `All ${poolSize} simulator slots are locked. Consider increasing simulator.pool_size in .proofrun/config.yaml.`);
+      // Acquire simulator slot (poll with timeout per spec)
+      const timeoutMs = parseInt(opts.timeout, 10) * 1000;
+      const pollInterval = 10000; // 10 seconds
+      const startTime = Date.now();
+      let simResult = null;
+
+      while (!simResult) {
+        simResult = acquireSimulatorSlot(lockDir, poolSize);
+        if (simResult) break;
+        if (Date.now() - startTime >= timeoutMs) {
+          error('session.start', `All ${poolSize} simulator slots are locked. Waited ${opts.timeout}s. Consider increasing simulator.pool_size in .proofrun/config.yaml.`);
+        }
+        // Poll: wait and retry
+        await new Promise(r => setTimeout(r, pollInterval));
       }
 
       // Acquire port
