@@ -7,6 +7,7 @@ import {
   ensureSimLockFiles, ensurePortLockFiles,
   acquireSimulatorSlot, acquirePort,
   releaseLock, getLockedSlots, getLockedPorts,
+  transferLockPid,
 } from '../locking.js';
 import {
   generateSessionId, createSessionDir, saveSessionState,
@@ -90,6 +91,12 @@ export function registerSession(program) {
       serverProcess.stdout.pipe(logStream);
       serverProcess.stderr.pipe(logStream);
       serverProcess.unref();
+
+      // Transfer lock ownership to dev server PID so locks survive after CLI exits
+      if (serverProcess.pid) {
+        transferLockPid(simResult.lock, serverProcess.pid);
+        transferLockPid(portResult.lock, serverProcess.pid);
+      }
 
       // Wait for ready signal
       const readySignal = config.dev_server.ready_signal;
@@ -176,12 +183,13 @@ export function registerSession(program) {
 
       const { sessionDir, state } = active;
 
-      // Kill dev server
+      // Kill dev server process group (detached: true creates a new group)
       if (state.dev_server?.pid) {
         try {
-          process.kill(state.dev_server.pid);
+          process.kill(-state.dev_server.pid, 'SIGTERM');
         } catch {
-          // Process already dead
+          // Process group already dead, try single process
+          try { process.kill(state.dev_server.pid, 'SIGTERM'); } catch { /* already dead */ }
         }
       }
 

@@ -21,7 +21,23 @@ export function loadConfig(startDir = process.cwd()) {
   if (!configPath) return null;
 
   const raw = readFileSync(configPath, 'utf8');
-  const config = yaml.load(raw);
+  let config;
+  try {
+    config = yaml.load(raw);
+  } catch (e) {
+    console.log(JSON.stringify({
+      ok: false, command: null, data: null,
+      error: `Failed to parse ${configPath}: ${e.message}`
+    }));
+    process.exit(1);
+  }
+  if (!config || typeof config !== 'object') {
+    console.log(JSON.stringify({
+      ok: false, command: null, data: null,
+      error: `Invalid config at ${configPath}: expected a YAML mapping`
+    }));
+    process.exit(1);
+  }
   config._path = configPath;
   config._dir = dirname(dirname(configPath)); // project root (parent of .proofrun/)
   return config;

@@ -61,7 +61,7 @@ function tryAcquirePidLock(lockFilePath) {
     }
   }
   writeFileSync(heldPath, String(process.pid));
-  // Verify we won the race
+  // Verify we won the race (best-effort, not fully atomic)
   try {
     const content = readFileSync(heldPath, 'utf8').trim();
     if (content !== String(process.pid)) return null;
@@ -69,6 +69,13 @@ function tryAcquirePidLock(lockFilePath) {
     return null;
   }
   return { lockFile: lockFilePath, heldPath, pid: process.pid };
+}
+
+// Re-write lock file with a different PID (e.g., the dev server PID)
+// so the lock survives after the CLI process exits.
+export function transferLockPid(lock, newPid) {
+  if (!lock?.heldPath) return;
+  writeFileSync(lock.heldPath, String(newPid));
 }
 
 export function releaseLock(lock) {

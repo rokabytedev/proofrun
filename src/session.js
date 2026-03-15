@@ -25,7 +25,11 @@ export function saveSessionState(sessionDir, state) {
 export function loadSessionState(sessionDir) {
   const statePath = resolve(sessionDir, 'state.json');
   if (!existsSync(statePath)) return null;
-  return JSON.parse(readFileSync(statePath, 'utf8'));
+  try {
+    return JSON.parse(readFileSync(statePath, 'utf8'));
+  } catch {
+    return null; // Corrupted state file
+  }
 }
 
 export function findActiveSession(evidenceDir) {
@@ -62,7 +66,11 @@ export function initEvidence(sessionDir, sessionId, changeName, simulator, port)
 export function loadEvidence(sessionDir) {
   const evidencePath = resolve(sessionDir, 'evidence.json');
   if (!existsSync(evidencePath)) return null;
-  return JSON.parse(readFileSync(evidencePath, 'utf8'));
+  try {
+    return JSON.parse(readFileSync(evidencePath, 'utf8'));
+  } catch {
+    return null; // Corrupted evidence file
+  }
 }
 
 export function appendEvidence(sessionDir, entry) {
