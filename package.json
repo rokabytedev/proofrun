@@ -1,13 +1,35 @@
 {
   "name": "proofrun",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+  "version": "0.1.0",
+  "description": "CLI tool for AI agent verification workflows — capture evidence, generate interactive reports",
+  "type": "module",
+  "bin": {
+    "proofrun": "./bin/proofrun.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs"
+  "files": [
+    "bin/",
+    "src/",
+    "skills/",
+    "presets/",
+    "templates/"
+  ],
+  "scripts": {
+    "test": "node --test src/**/*.test.js"
+  },
+  "keywords": [
+    "ai",
+    "agent",
+    "verification",
+    "testing",
+    "simulator",
+    "evidence",
+    "report"
+  ],
+  "author": "rokabytedev",
+  "license": "MIT",
+  "dependencies": {
+    "commander": "^13.1.0",
+    "js-yaml": "^4.1.0",
+    "proper-lockfile": "^4.1.2"
+  }
 }
