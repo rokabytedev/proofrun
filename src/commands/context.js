@@ -4,13 +4,13 @@ import { requireConfig, withDefaults } from '../config.js';
 export function registerContext(program) {
   program
     .command('context [change]')
-    .description('Get context instructions for a change, or list available changes')
+    .description('Get project context for verification, optionally scoped to a change')
     .option('--list', 'List available changes via discovery command')
     .action(async (change, opts) => {
       const config = withDefaults(requireConfig('context'));
 
-      if (opts.list || !change) {
-        // Return discovery instructions
+      // Explicit --list: return discovery instructions only
+      if (opts.list) {
         const cc = config.change_context || {};
         success('context.list', {
           source: cc.source || 'manual',
@@ -22,18 +22,14 @@ export function registerContext(program) {
         return;
       }
 
-      // Build context instructions for a specific change
-      const cc = config.change_context || {};
+      // Build project context (always included)
       const ak = config.app_knowledge || {};
       const interaction = config.interaction || {};
       const boundaries = config.boundaries || {};
       const session = config.session || {};
       const simulator = config.simulator || {};
 
-      const replacePlaceholder = (str) => str ? str.replace(/\{\{change\}\}/g, change) : str;
-
-      const data = {
-        change_context: buildChangeContext(cc, change, replacePlaceholder),
+      const projectContext = {
         app_knowledge: buildAppKnowledge(ak),
         interaction: {
           tool: interaction.tool || 'iosef',
@@ -52,7 +48,23 @@ export function registerContext(program) {
         },
       };
 
-      success('context', data);
+      if (!change) {
+        // No change name: return project context for free-form verification
+        success('context', {
+          change_context: null,
+          ...projectContext,
+        });
+        return;
+      }
+
+      // With change name: include change-specific context
+      const cc = config.change_context || {};
+      const replacePlaceholder = (str) => str ? str.replace(/\{\{change\}\}/g, change) : str;
+
+      success('context', {
+        change_context: buildChangeContext(cc, change, replacePlaceholder),
+        ...projectContext,
+      });
     });
 }
 

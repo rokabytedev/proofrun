@@ -1,19 +1,18 @@
 ---
 name: proofrun
-description: AI agent verification workflow — verify implementation against acceptance criteria using simulator interaction, capture screenshot evidence, generate interactive HTML reports for human review
+description: AI agent verification workflow — verify implementation or app behavior using simulator interaction, capture screenshot evidence, generate interactive HTML reports for human review. Use after implementing a change with UI acceptance criteria, OR when asked to verify app behavior (e.g., "check Chinese locale translations", "verify the recording flow works"). Triggers on verification requests, "/proofrun", "verify my changes", "test the implementation", "check if it works", or free-form app verification queries.
 ---
 
 # Proofrun — Verification Workflow
 
-You are an AI agent that has just implemented a feature. This skill teaches you how to verify your work against acceptance criteria by interacting with the running app and producing an auditable evidence report.
+You are an AI agent verifying app behavior by interacting with a running app in a simulator and producing an auditable evidence report.
 
 ## When to Trigger
 
-Trigger proofrun verification when ALL of these are true:
-- You have completed implementing a change (feature, fix, etc.)
-- Acceptance criteria exist for the change
-- The app runs in a simulator (iOS first, via iosef)
-- The user has not explicitly said to skip verification
+Use proofrun when:
+- You have completed implementing a change with verifiable acceptance criteria, OR
+- The user asks you to verify something about the app (e.g., "check all screens for missing translations", "verify the onboarding flow works end-to-end")
+- AND the app runs in a simulator (iOS first, via iosef)
 
 ## Prerequisites
 
@@ -31,37 +30,53 @@ Before starting, verify these are available:
 
 ### 1. Gather Context
 
+**If verifying a specific change:**
 ```bash
 npx proofrun context <change-name>
 ```
 
-This returns instructions (not content) for gathering:
-- **Change context**: What was implemented, where to find specs/ACs
-- **App knowledge**: How to discover app navigation and behavior
-- **Interaction config**: Which tool/strategy to use
-- **Boundaries**: What you can vs. cannot verify
+**If verifying app behavior (free-form query):**
+```bash
+npx proofrun context
+```
 
-Follow the returned instructions — run the discovery commands, read the specified files.
+Both return project context: app knowledge, interaction config, device types, boundaries. The change-scoped version additionally returns change-specific context (artifact locations, commands).
 
-### 2. Classify Acceptance Criteria
+If you need to discover available change names, run `npx proofrun context --list` first.
 
-For each AC, classify as:
-- **Agent-verifiable**: Element visibility, navigation, text content, form inputs, gestures, state persistence
-- **Human-required**: Audio output, haptic feedback, performance, real-device-only features, VoiceOver/accessibility announcements
+Follow the returned instructions — run discovery commands, read relevant files to understand the app.
 
-Read the boundaries file (from context output) for the full classification guide. If the project has `.proofrun/boundaries.md`, use that. Otherwise, read `references/boundaries-template.md` from this skill.
+### 2. Determine What to Verify
+
+**If verifying a change:** Follow the context instructions to read change artifacts. Extract numbered acceptance criteria. Classify each as agent-verifiable or human-required using the boundaries guide.
+
+**If given a verification query:** Break the query into discrete, verifiable criteria. Assign AC numbers. Example:
+
+Query: "Check all screens for missing Chinese translations"
+→ AC 1: Home screen — all visible strings translated
+→ AC 2: Settings screen — all visible strings translated
+→ AC 3: Library screen — all visible strings translated
+→ ... (discover more as you explore the app)
+
+ACs can be added during exploration — you don't need to define them all upfront. Keep each criterion specific and verifiable via the simulator.
+
+For both cases, read the boundaries file (from context output) to classify what you can vs. cannot verify. If the project has `.proofrun/boundaries.md`, use that. Otherwise, read `references/boundaries-template.md` from this skill.
 
 ### 3. Start Session
 
 ```bash
-npx proofrun session start --change <change-name> [--device <type>]
+npx proofrun session start --change <name> [--device <type>]
 ```
 
-This acquires a simulator slot and port, starts the dev server, and waits for it to be ready.
+For structured verification, use the change name. For free-form, use a descriptive slug:
+- "check Chinese translations" → `--change "chinese-locale-audit"`
+- "verify recording flow" → `--change "recording-flow-e2e"`
 
-### 4. Verify Each AC (Explore-Then-Document)
+This acquires a simulator slot and port, starts the dev server, and waits for it to be ready. If a session is already active, stop it first with `npx proofrun session stop`.
 
-For each agent-verifiable AC:
+### 4. Verify Each Criterion (Explore-Then-Document)
+
+For each agent-verifiable criterion:
 
 **Explore phase** (not recorded):
 - Use the simulator interaction tool (iosef) freely
@@ -78,14 +93,14 @@ npx proofrun screenshot /tmp/screen.jpeg --ac 1 --note "Library screen with sear
 npx proofrun judge --ac 1 --pass "Search bar found at (398,98) via iosef find --identifier library-search-input"
 ```
 
-**If an AC fails**:
+**If a criterion fails**:
 1. Record the failure: `npx proofrun judge --ac 3 --fail "Clear button not found — missing testID"`
-2. Fix the code
+2. Fix the code (if verifying your own implementation)
 3. Record the fix: `npx proofrun fix --ac 3 --description "Added testID='library-search-clear' to SearchBar clear icon"`
 4. Re-verify and record new judgment
 5. Max retries per AC: check `session.max_retries_per_ac` from context output
 
-**For human-required ACs**:
+**For human-required criteria**:
 ```bash
 npx proofrun judge --ac 4 --human "Cannot verify audio output — requires human listener"
 ```
@@ -96,7 +111,7 @@ npx proofrun judge --ac 4 --human "Cannot verify audio output — requires human
 npx proofrun evidence
 ```
 
-Compare the returned AC list against your full list of ACs. Verify all ACs have judgments.
+Compare the returned AC list against your criteria. Verify all have judgments before generating the report.
 
 ### 6. Generate Report
 
@@ -118,14 +133,15 @@ Always stop the session when done — this releases simulator and port locks for
 
 If the user provides feedback (via the report's Export Feedback button → JSON file):
 1. Read the exported feedback JSON
-2. For each rejected AC: understand the comment, fix the issue
-3. Start a new session and re-verify rejected ACs
+2. For each rejected criterion: understand the comment, fix the issue
+3. Start a new session and re-verify rejected criteria
 4. Generate a new report
 
 ## Important Notes
 
 - **CLI is dumb, you are smart**: The CLI just records what you tell it. YOU decide what to verify, how to navigate, and what passes/fails.
-- **Record clean paths**: Don't record your exploration — only the final verification path that proves the AC.
+- **Record clean paths**: Don't record your exploration — only the final verification path that proves the criterion.
 - **Run `npx proofrun --help` for complete command reference** — exact syntax, all arguments, examples.
-- **One AC at a time**: Verify, record evidence, judge. Then move to the next AC.
+- **One criterion at a time**: Verify, record evidence, judge. Then move to the next.
 - **Screenshots are proof**: Take screenshots at key verification points. They're embedded in the report.
+- **Keep criteria specific**: Whether extracted from artifacts or defined from a query, each criterion should be discrete and verifiable — "Home screen has no missing translations" not "app works in Chinese."

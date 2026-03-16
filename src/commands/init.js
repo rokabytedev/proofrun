@@ -33,6 +33,15 @@ export function registerInit(program) {
       const presetContent = readFileSync(presetFile, 'utf8');
       writeFileSync(configPath, presetContent);
 
+      // Copy boundaries template
+      const boundariesDest = resolve(proofrunDir, 'boundaries.md');
+      if (!existsSync(boundariesDest)) {
+        const boundariesSrc = resolve(__dirname, '../../skills/proofrun/references/boundaries-template.md');
+        if (existsSync(boundariesSrc)) {
+          writeFileSync(boundariesDest, readFileSync(boundariesSrc, 'utf8'));
+        }
+      }
+
       // Add transient dirs to .gitignore
       const gitignorePath = resolve(process.cwd(), '.gitignore');
       const entriesToAdd = ['.proofrun/locks/', '.proofrun/sessions/', '.proofrun/reports/'];

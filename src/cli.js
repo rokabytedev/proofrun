@@ -25,8 +25,9 @@ SESSION COMMANDS
   proofrun session status                Show active session info or pool availability
 
 CONTEXT COMMANDS
+  proofrun context                       Get project context (app knowledge, interaction, devices)
+  proofrun context <change>              Get project + change-specific context
   proofrun context --list                Get discovery command for available changes
-  proofrun context <change>              Get context instructions for a specific change
 
 EVIDENCE COMMANDS
   proofrun step <description>            Record a verification step
@@ -62,18 +63,21 @@ EXAMPLES
   # Check environment
   proofrun doctor
 
-  # Start a verification session
+  # Verify a specific change
+  proofrun context add-search
   proofrun session start --change add-search
+
+  # Free-form verification (no change artifacts needed)
+  proofrun context
+  proofrun session start --change "chinese-locale-audit"
 
   # Record evidence
   proofrun step "Navigate to Library tab" --ac 1
   proofrun screenshot /tmp/screen.jpeg --ac 1 --note "Library screen visible"
   proofrun judge --ac 1 --pass "Search bar found at expected position"
 
-  # Generate report
+  # Generate report and clean up
   proofrun report --open
-
-  # Stop session
   proofrun session stop
 
 PRESETS
