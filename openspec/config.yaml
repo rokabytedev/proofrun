@@ -1,0 +1,65 @@
+schema: spec-driven
+
+context: |
+  ## Purpose
+  Proofrun is a CLI tool + agent skill that enables AI agents to verify their own work by interacting with a running app in a simulator, capturing screenshot evidence, and generating interactive HTML reports for human review. It is NOT a test framework — it is a structured verification workflow that produces proof-of-work.
+
+  ## Tech Stack
+  - Node.js ES module CLI (commander for arg parsing, js-yaml for config)
+  - Zero build step — plain JS, no TypeScript, no bundler
+  - Presets for Expo and React Native CLI projects
+  - Interactive HTML reports (vanilla HTML/CSS/JS, no framework)
+  - PID-file based locking for concurrent session management
+
+  ## Architecture
+  - `bin/proofrun.js` → `src/cli.js` → `src/commands/*.js`
+  - Config: `src/config.js` (loads `.proofrun/config.yaml`)
+  - Session: `src/session.js` (state, evidence log)
+  - Locking: `src/locking.js` (simulator slots, ports)
+  - Output: `src/output.js` (JSON envelope protocol)
+  - Skills: `skills/proofrun/SKILL.md` (agent workflow instructions)
+  - Presets: `presets/*.yaml` (platform-specific defaults)
+  - Templates: `templates/report.html` (interactive report)
+
+  ## Core Principles
+  - **CLI is dumb, agent is smart**: CLI reads config, manages locks, captures evidence, renders templates. Agent provides all intelligence (what to verify, how to navigate, pass/fail judgment).
+  - **Simplicity First**: KISS + YAGNI; default to simplest solution; justify complexity
+  - **Single Responsibility**: Each module has one reason to change; high cohesion, low coupling
+  - **No Backward Compatibility**: Pre-launch tool; remove legacy paths, don't maintain compat shims
+  - **Code Clarity**: Descriptive names, small functions, command-query separation
+  - **Structured JSON I/O**: Every CLI command outputs `{ok, command, data, error}` JSON envelope for agent consumption
+
+interaction:
+  clarification:
+    - Always use AskUserQuestion tool to clarify ambiguities during explore and other phases
+    - Proactively ask questions rather than making assumptions
+  language:
+    - User input may contain messy Chinese from ASR with typos - focus on understanding intent, not literal wording
+    - Always write artifacts (proposals, designs, specs, tasks) in English
+    - Discussion and clarification can be in Simplified Chinese or English per user preference
+
+rules:
+  proposal:
+    - Include detailed design doc - no handwaving implementation details
+    - Require user review and approval before implementation
+  specs:
+    - Use Given/When/Then format for behavioral scenarios
+    - Specs must be complete with no open questions before implementation
+    - Include edge cases and error scenarios
+  design:
+    - CRITICAL - Design docs are implemented by a DIFFERENT AI agent without conversation context
+    - All information must be self-contained - the implementing agent has no access to prior discussions
+    - Plan all details upfront; nothing left to implementation phase
+    - Justify any complexity introduced; default to simplest solution
+    - Clarity over formality - express intent precisely
+    - Use code snippets when they express intent more clearly than prose
+    - Reference existing patterns with file paths when relevant
+    - Specify concrete values rather than vague terms
+    - Dependencies and configuration - be specific
+    - Document reasoning for major decisions, not just what to do
+  tasks:
+    - Keep tasks small and focused (single logical purpose)
+    - Separate refactoring tasks from feature tasks
+  implementation:
+    - No user approval needed to start - proposal approval already granted
+    - Fix any failing tests before declaring implementation complete
