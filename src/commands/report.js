@@ -27,8 +27,8 @@ export function registerReport(program) {
         sessionId = opts.session;
         state = loadSessionState(sessionDir);
       } else {
-        const active = findActiveSession(evidenceDir);
-        if (active) {
+        const active = findActiveSession(evidenceDir, projectRoot);
+        if (active && active.sessionId) {
           sessionDir = active.sessionDir;
           sessionId = active.sessionId;
           state = active.state;
@@ -109,7 +109,7 @@ export function registerReport(program) {
     });
 }
 
-function buildReportData(evidence, state, sessionDir, config) {
+export function buildReportData(evidence, state, sessionDir, config) {
   const entries = evidence.entries;
 
   // Group entries by AC

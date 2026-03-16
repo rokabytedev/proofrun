@@ -30,10 +30,11 @@ export function registerSession(program) {
       const config = withDefaults(rawConfig);
       const projectRoot = config._dir;
 
-      // Check no active session
+      // Check no active session (auto-recovers stale sessions)
       const evidenceDir = resolve(projectRoot, config.session.evidence_dir);
-      const existing = findActiveSession(evidenceDir);
-      if (existing) {
+      const existing = findActiveSession(evidenceDir, projectRoot);
+      const recoveredSessions = existing?.recoveredSessions || [];
+      if (existing && existing.sessionId) {
         error('session.start', `Active session already exists: ${existing.sessionId}. Run \`proofrun session stop\` first.`);
       }
 
@@ -152,7 +153,7 @@ export function registerSession(program) {
       saveSessionState(sessionDir, sessionState);
       initEvidence(sessionDir, sessionId, opts.change, sessionState.simulator, portResult.port);
 
-      success('session.start', {
+      const responseData = {
         session_id: sessionId,
         change_name: opts.change,
         simulator: sessionState.simulator,
@@ -164,7 +165,11 @@ export function registerSession(program) {
           status: serverReady ? 'ready' : 'starting',
         },
         session_dir: `.proofrun/sessions/${sessionId}`,
-      });
+      };
+      if (recoveredSessions.length > 0) {
+        responseData.recovered_stale_sessions = recoveredSessions;
+      }
+      success('session.start', responseData);
     });
 
   session
@@ -176,8 +181,8 @@ export function registerSession(program) {
       const projectRoot = config._dir;
       const evidenceDir = resolve(projectRoot, config.session.evidence_dir);
 
-      const active = findActiveSession(evidenceDir);
-      if (!active) {
+      const active = findActiveSession(evidenceDir, projectRoot);
+      if (!active || !active.sessionId) {
         error('session.stop', 'No active session found.');
       }
 
@@ -240,7 +245,7 @@ export function registerSession(program) {
       const poolSize = config.simulator.pool_size;
       const { start: portStart, end: portEnd } = config.port_range;
 
-      const active = findActiveSession(evidenceDir);
+      const active = findActiveSession(evidenceDir, projectRoot);
 
       const lockedSlots = existsSync(lockDir) ? getLockedSlots(lockDir, poolSize) : [];
       const lockedPorts = existsSync(lockDir) ? getLockedPorts(lockDir, portStart, portEnd) : [];
@@ -251,7 +256,7 @@ export function registerSession(program) {
         ports: { available: totalPorts - lockedPorts.length, total: totalPorts, locked_ports: lockedPorts },
       };
 
-      if (active) {
+      if (active && active.sessionId) {
         const { state } = active;
         const evidence = loadEvidence(active.sessionDir);
         success('session.status', {

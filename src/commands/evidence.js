@@ -6,8 +6,8 @@ import { findActiveSession, appendEvidence, loadEvidence } from '../session.js';
 
 function requireActiveSession(config, command) {
   const evidenceDir = resolve(config._dir, config.session.evidence_dir);
-  const active = findActiveSession(evidenceDir);
-  if (!active) {
+  const active = findActiveSession(evidenceDir, config._dir);
+  if (!active || !active.sessionId) {
     error(command, 'No active session. Run `proofrun session start --change <name>` first.');
   }
   return active;

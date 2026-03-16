@@ -14,7 +14,7 @@
     "templates/"
   ],
   "scripts": {
-    "test": "node --test src/**/*.test.js"
+    "test": "node --test --test-name-pattern='.*' src/*.test.js src/commands/*.test.js"
   },
   "keywords": [
     "ai",

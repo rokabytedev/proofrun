@@ -2,7 +2,7 @@ import { execSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { success } from '../output.js';
-import { loadConfig, withDefaults } from '../config.js';
+import { loadConfig, withDefaults, getUnknownKeys } from '../config.js';
 import { getLockMechanism, getLockedSlots } from '../locking.js';
 
 export function registerDoctor(program) {
@@ -82,6 +82,17 @@ export function registerDoctor(program) {
         available_slots: available,
         total_slots: poolSize,
       });
+
+      // Check 6: Unknown config keys
+      const unknownKeys = getUnknownKeys(rawConfig);
+      if (unknownKeys.length > 0) {
+        checks.push({
+          name: 'config_keys',
+          status: 'warn',
+          detail: `Unknown top-level config keys: ${unknownKeys.join(', ')}`,
+          unknown_keys: unknownKeys,
+        });
+      }
 
       const allPassed = checks.every(c => c.status === 'pass');
       success('doctor', { all_passed: allPassed, checks });

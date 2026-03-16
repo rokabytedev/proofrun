@@ -38,9 +38,56 @@ export function loadConfig(startDir = process.cwd()) {
     }));
     process.exit(1);
   }
+  // Validate required fields and types
+  const errors = validateConfig(config);
+  if (errors.length > 0) {
+    console.log(JSON.stringify({
+      ok: false, command: null, data: null,
+      error: `Config validation failed: ${errors.join('; ')}`
+    }));
+    process.exit(1);
+  }
+
   config._path = configPath;
   config._dir = dirname(dirname(configPath)); // project root (parent of .proofrun/)
   return config;
+}
+
+export const KNOWN_TOP_LEVEL_KEYS = [
+  'platform', 'app', 'dev_server', 'simulator', 'port_range',
+  'interaction', 'change_context', 'app_knowledge', 'boundaries',
+  'reports', 'session',
+];
+
+export function validateConfig(config) {
+  const errors = [];
+
+  // Required fields
+  if (!config.platform) errors.push('missing required field: platform');
+  if (!config.app?.bundle_id) errors.push('missing required field: app.bundle_id');
+  if (!config.dev_server?.start) errors.push('missing required field: dev_server.start');
+
+  // Type checks on numeric fields
+  if (config.simulator?.pool_size !== undefined && (!Number.isInteger(config.simulator.pool_size) || config.simulator.pool_size < 1)) {
+    errors.push('simulator.pool_size must be a positive integer');
+  }
+  if (config.port_range?.start !== undefined && !Number.isInteger(config.port_range.start)) {
+    errors.push('port_range.start must be an integer');
+  }
+  if (config.port_range?.end !== undefined && !Number.isInteger(config.port_range.end)) {
+    errors.push('port_range.end must be an integer');
+  }
+  if (config.dev_server?.startup_timeout !== undefined && (!Number.isInteger(config.dev_server.startup_timeout) || config.dev_server.startup_timeout < 1)) {
+    errors.push('dev_server.startup_timeout must be a positive integer');
+  }
+
+  return errors;
+}
+
+export function getUnknownKeys(config) {
+  return Object.keys(config)
+    .filter(k => !k.startsWith('_'))
+    .filter(k => !KNOWN_TOP_LEVEL_KEYS.includes(k));
 }
 
 export function requireConfig(command) {
