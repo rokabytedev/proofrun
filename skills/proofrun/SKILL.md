@@ -12,43 +12,43 @@ You are an AI agent verifying app behavior by interacting with a running app in 
 Use proofrun when:
 - You have completed implementing a change with verifiable acceptance criteria, OR
 - The user asks you to verify something about the app (e.g., "check all screens for missing translations", "verify the onboarding flow works end-to-end")
-- AND the app runs in a simulator (iOS first, via iosef)
+- AND the app runs in a simulator
 
 ## Prerequisites
 
-Before starting, verify these are available:
+Before starting, verify proofrun is set up:
 
-1. **Simulator interaction tool**: Run `iosef --help`. If not available: `npx skills add riwsky/iosef@ios-simulator-interaction -g`
-2. **Proofrun CLI**: Run `npx proofrun --help` (npx handles on-demand install)
-3. **Proofrun config**: Check if `.proofrun/config.yaml` exists. If not:
+1. **Proofrun CLI**: Run `npx proofrun --help` (npx handles on-demand install)
+2. **Proofrun config**: Check if `.proofrun/config.toml` exists. If not:
    - Detect project type (Expo? RN CLI?) from project files
    - Run `npx proofrun init --preset <detected>`
-   - Review generated config, fill in bundle_id and display_name
-4. **Environment check**: Run `npx proofrun doctor` and address any failures
+3. **Environment check**: Run `npx proofrun doctor` and address any failures
+4. **Knowledge check**: Run `npx proofrun knowledge --list` to see available knowledge.
+   Read the `interaction` topic for simulator tool setup instructions.
 
 ## Workflow
 
 ### 1. Gather Context
 
-**If verifying a specific change:**
+Get config and knowledge path:
 ```bash
-npx proofrun context <change-name>
+npx proofrun context              # free-form verification
+npx proofrun context <change>     # change-specific verification
 ```
 
-**If verifying app behavior (free-form query):**
+Read relevant knowledge files:
 ```bash
-npx proofrun context
+npx proofrun knowledge interaction   # how to use the simulator tool
+npx proofrun knowledge dev-server    # how to start the dev server
+npx proofrun knowledge context       # how to find what to verify
+npx proofrun knowledge boundaries    # what you can/cannot verify
 ```
 
-Both return project context: app knowledge, interaction config, device types, boundaries. The change-scoped version additionally returns change-specific context (artifact locations, commands).
-
-If you need to discover available change names, run `npx proofrun context --list` first.
-
-Follow the returned instructions — run discovery commands, read relevant files to understand the app.
+Only read topics relevant to your task — don't load everything.
 
 ### 2. Determine What to Verify
 
-**If verifying a change:** Follow the context instructions to read change artifacts. Extract numbered acceptance criteria. Classify each as agent-verifiable or human-required using the boundaries guide.
+**If verifying a change:** Follow the instructions in `knowledge/context` to find change artifacts. Extract numbered acceptance criteria. Classify each as agent-verifiable or human-required using `knowledge/boundaries`.
 
 **If given a verification query:** Break the query into discrete, verifiable criteria. Assign AC numbers. Example:
 
@@ -58,31 +58,35 @@ Query: "Check all screens for missing Chinese translations"
 → AC 3: Library screen — all visible strings translated
 → ... (discover more as you explore the app)
 
-ACs can be added during exploration — you don't need to define them all upfront. Keep each criterion specific and verifiable via the simulator.
+ACs can be added during exploration — you don't need to define them all upfront.
 
-For both cases, read the boundaries file (from context output) to classify what you can vs. cannot verify. If the project has `.proofrun/boundaries.md`, use that. Otherwise, read `references/boundaries-template.md` from this skill.
+### 3. Set Up Environment
 
-### 3. Start Session
+Based on knowledge files:
+1. Start the dev server (follow `knowledge/dev-server`)
+2. Boot and connect to a simulator (follow `knowledge/simulators`)
+3. Install and launch the app
+
+### 4. Start Session
 
 ```bash
-npx proofrun session start --change <name> [--device <type>]
+npx proofrun session start --change <name>
 ```
 
 For structured verification, use the change name. For free-form, use a descriptive slug:
 - "check Chinese translations" → `--change "chinese-locale-audit"`
 - "verify recording flow" → `--change "recording-flow-e2e"`
 
-This acquires a simulator slot and port, starts the dev server, and waits for it to be ready. If a session is already active, stop it first with `npx proofrun session stop`.
+This acquires a simulator slot and port lock. If a session is already active, stop it first with `npx proofrun session stop`.
 
-### 4. Verify Each Criterion (Explore-Then-Document)
+### 5. Verify Each Criterion (Explore-Then-Document)
 
 For each agent-verifiable criterion:
 
 **Explore phase** (not recorded):
-- Use the simulator interaction tool (iosef) freely
+- Use the simulator interaction tool freely
 - Navigate to the relevant screen
 - Try different paths, find elements, verify behavior
-- This is messy — wrong taps, backtracking is normal
 
 **Document phase** (recorded via proofrun):
 - Once you've confirmed the verification path, record the clean steps:
@@ -98,38 +102,47 @@ npx proofrun judge --ac 1 --pass "Search bar found at (398,98) via iosef find --
 2. Fix the code (if verifying your own implementation)
 3. Record the fix: `npx proofrun fix --ac 3 --description "Added testID='library-search-clear' to SearchBar clear icon"`
 4. Re-verify and record new judgment
-5. Max retries per AC: check `session.max_retries_per_ac` from context output
 
 **For human-required criteria**:
 ```bash
 npx proofrun judge --ac 4 --human "Cannot verify audio output — requires human listener"
 ```
 
-### 5. Check Progress
+### 6. Check Progress
 
 ```bash
 npx proofrun evidence
 ```
 
-Compare the returned AC list against your criteria. Verify all have judgments before generating the report.
+Compare the returned AC list against your criteria. Verify all have judgments.
 
-### 6. Generate Report
+### 7. Generate Report
 
 ```bash
 npx proofrun report --open
 ```
 
-This creates a self-contained interactive HTML report with embedded screenshots. Tell the user the report is ready and provide the file path.
+Tell the user the report is ready and provide the file path.
 
-### 7. Release Resources
+### 8. Clean Up
 
 ```bash
 npx proofrun session stop
 ```
 
-Always stop the session when done — this releases simulator and port locks for other agents.
+Stop the dev server and simulator. Always stop the session — this releases locks for other agents.
 
-### 8. Handle Human Feedback
+### 9. Update Knowledge
+
+After verification, update `.proofrun/knowledge/` with anything you discovered:
+- Navigation paths and screen transitions
+- Element identifiers and naming patterns
+- Timing quirks (animation waits, debounce delays)
+- Anything that would make the next verification faster
+
+Create new topic files for distinct knowledge areas. Keep notes generic — useful across sessions, not session-specific.
+
+### 10. Handle Human Feedback
 
 If the user provides feedback (via the report's Export Feedback button → JSON file):
 1. Read the exported feedback JSON
@@ -139,9 +152,17 @@ If the user provides feedback (via the report's Export Feedback button → JSON 
 
 ## Important Notes
 
-- **CLI is dumb, you are smart**: The CLI just records what you tell it. YOU decide what to verify, how to navigate, and what passes/fails.
+- **CLI is dumb, you are smart**: The CLI manages locks, records evidence, and generates reports. YOU decide what to verify, how to navigate, and what passes/fails.
 - **Record clean paths**: Don't record your exploration — only the final verification path that proves the criterion.
-- **Run `npx proofrun --help` for complete command reference** — exact syntax, all arguments, examples.
+- **Run `npx proofrun --help` for complete command reference**.
 - **One criterion at a time**: Verify, record evidence, judge. Then move to the next.
-- **Screenshots are proof**: Take screenshots at key verification points. They're embedded in the report.
-- **Keep criteria specific**: Whether extracted from artifacts or defined from a query, each criterion should be discrete and verifiable — "Home screen has no missing translations" not "app works in Chinese."
+- **Screenshots are proof**: Take screenshots at key verification points.
+- **Keep criteria specific**: Each should be discrete and verifiable — "Home screen has no missing translations" not "app works in Chinese."
+
+## Knowledge Management
+
+Knowledge files at `.proofrun/knowledge/` are **working notes, not specifications**. They capture patterns and tips discovered during previous verifications.
+
+- Treat them as hints — verify against the actual app, not the knowledge file
+- If you find something contradicts a knowledge file, update the file
+- Knowledge files are advisory — the app is the source of truth

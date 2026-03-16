@@ -1,22 +1,9 @@
-import { openSync, existsSync, mkdirSync, writeFileSync, readFileSync, unlinkSync, closeSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync, readFileSync, unlinkSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { execSync } from 'node:child_process';
 
-let flockAvailable = null;
-
-function checkFlock() {
-  if (flockAvailable !== null) return flockAvailable;
-  try {
-    execSync('which flock', { stdio: 'pipe' });
-    flockAvailable = true;
-  } catch {
-    flockAvailable = false;
-  }
-  return flockAvailable;
-}
-
 export function getLockMechanism() {
-  return checkFlock() ? 'flock' : 'pid-file';
+  return 'session-bound';
 }
 
 export function ensureLockDir(lockDir) {
@@ -39,43 +26,30 @@ export function ensurePortLockFiles(lockDir, start, end) {
   }
 }
 
-function isProcessAlive(pid) {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch {
-    return false;
-  }
-}
+// Session-bound locking: held files contain a session ID.
+// A lock is "held" if the held file exists and contains a non-empty value.
+// Stale detection is done at session level (findActiveSession), not lock level.
 
-function tryAcquirePidLock(lockFilePath) {
+function tryAcquireSessionLock(lockFilePath) {
   const heldPath = lockFilePath + '.held';
   if (existsSync(heldPath)) {
     try {
-      const pid = parseInt(readFileSync(heldPath, 'utf8').trim(), 10);
-      if (pid && isProcessAlive(pid)) {
-        return null; // Lock held by live process
-      }
+      const content = readFileSync(heldPath, 'utf8').trim();
+      if (content) return null; // Lock held by a session
     } catch {
-      // Stale or corrupt — proceed to claim
+      // Corrupt — proceed to claim
     }
   }
+  // Claim the lock with a placeholder (session start will overwrite with session ID)
   writeFileSync(heldPath, String(process.pid));
-  // Verify we won the race (best-effort, not fully atomic)
+  // Verify we won the race (best-effort)
   try {
     const content = readFileSync(heldPath, 'utf8').trim();
     if (content !== String(process.pid)) return null;
   } catch {
     return null;
   }
-  return { lockFile: lockFilePath, heldPath, pid: process.pid };
-}
-
-// Re-write lock file with a different PID (e.g., the dev server PID)
-// so the lock survives after the CLI process exits.
-export function transferLockPid(lock, newPid) {
-  if (!lock?.heldPath) return;
-  writeFileSync(lock.heldPath, String(newPid));
+  return { lockFile: lockFilePath, heldPath };
 }
 
 export function releaseLock(lock) {
@@ -86,7 +60,6 @@ export function releaseLock(lock) {
 }
 
 export function isPortInUse(port) {
-  // Validate port is a safe integer to prevent command injection
   const portNum = Number(port);
   if (!Number.isInteger(portNum) || portNum < 1 || portNum > 65535) {
     throw new Error(`Invalid port number: ${port}`);
@@ -102,7 +75,7 @@ export function isPortInUse(port) {
 export function acquireSimulatorSlot(lockDir, poolSize) {
   for (let i = 0; i < poolSize; i++) {
     const lockFile = resolve(lockDir, `sim-${i}.lock`);
-    const lock = tryAcquirePidLock(lockFile);
+    const lock = tryAcquireSessionLock(lockFile);
     if (lock) return { slot: i, lock };
   }
   return null;
@@ -112,7 +85,7 @@ export function acquirePort(lockDir, start, end) {
   for (let port = start; port <= end; port++) {
     if (isPortInUse(port)) continue;
     const lockFile = resolve(lockDir, `port-${port}.lock`);
-    const lock = tryAcquirePidLock(lockFile);
+    const lock = tryAcquireSessionLock(lockFile);
     if (lock) return { port, lock };
   }
   return null;
@@ -124,10 +97,8 @@ export function getLockedSlots(lockDir, poolSize) {
     const heldPath = resolve(lockDir, `sim-${i}.lock.held`);
     if (existsSync(heldPath)) {
       try {
-        const pid = parseInt(readFileSync(heldPath, 'utf8').trim(), 10);
-        if (pid && isProcessAlive(pid)) {
-          locked.push(i);
-        }
+        const content = readFileSync(heldPath, 'utf8').trim();
+        if (content) locked.push(i);
       } catch { /* stale */ }
     }
   }
@@ -140,10 +111,8 @@ export function getLockedPorts(lockDir, start, end) {
     const heldPath = resolve(lockDir, `port-${port}.lock.held`);
     if (existsSync(heldPath)) {
       try {
-        const pid = parseInt(readFileSync(heldPath, 'utf8').trim(), 10);
-        if (pid && isProcessAlive(pid)) {
-          locked.push(port);
-        }
+        const content = readFileSync(heldPath, 'utf8').trim();
+        if (content) locked.push(port);
       } catch { /* stale */ }
     }
   }

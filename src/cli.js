@@ -4,30 +4,33 @@ import { registerDoctor } from './commands/doctor.js';
 import { registerSession } from './commands/session.js';
 import { registerEvidence } from './commands/evidence.js';
 import { registerContext } from './commands/context.js';
+import { registerKnowledge } from './commands/knowledge.js';
 import { registerReport } from './commands/report.js';
 
 const HELP_TEXT = `
 proofrun — AI agent verification CLI
 
-Proofrun gives AI agents a structured way to verify their implementation
-by interacting with a running app, capturing evidence, and generating
-interactive HTML reports for human review.
+Proofrun gives AI agents a structured way to verify app behavior,
+capture evidence, and generate interactive HTML reports for human review.
 
 SETUP COMMANDS
-  proofrun init --preset <name>          Create .proofrun/config.yaml from a preset
-  proofrun doctor                        Check environment readiness
+  proofrun init --preset <name>          Create .proofrun/ with config and knowledge
+  proofrun doctor                        Check infrastructure readiness
 
 SESSION COMMANDS
-  proofrun session start --change <name> Start verification session (acquire resources)
-    [--device <type>]                      Device type from config (default: "default")
+  proofrun session start --change <name> Acquire simulator slot and port
     [--timeout <seconds>]                  Max wait for resources (default: 300)
-  proofrun session stop                  Stop session, release all resources
-  proofrun session status                Show active session info or pool availability
+  proofrun session stop                  Release all locks, finalize session
+  proofrun session status                Show active session or pool availability
 
 CONTEXT COMMANDS
-  proofrun context                       Get project context (app knowledge, interaction, devices)
-  proofrun context <change>              Get project + change-specific context
-  proofrun context --list                Get discovery command for available changes
+  proofrun context                       Get config preferences and knowledge path
+  proofrun context <change>              Same, with change name echoed back
+
+KNOWLEDGE COMMANDS
+  proofrun knowledge --list              List available knowledge topics
+  proofrun knowledge <topic>             Read a specific knowledge file
+    [--json]                               Output as JSON instead of plain text
 
 EVIDENCE COMMANDS
   proofrun step <description>            Record a verification step
@@ -36,7 +39,7 @@ EVIDENCE COMMANDS
   proofrun screenshot <file>             Attach a screenshot to evidence
     [--ac <n>]                             Associate with acceptance criterion
     [--note <text>]                        Note about the screenshot
-  proofrun judge --ac <n>                Record judgment for an AC
+  proofrun judge --ac <n>                Record judgment for a criterion
     --pass <reasoning>                     Mark as passed
     --fail <reasoning>                     Mark as failed
     --human <reasoning>                    Mark as requiring human verification
@@ -60,15 +63,17 @@ EXAMPLES
   # Initialize for an Expo project
   proofrun init --preset expo
 
-  # Check environment
+  # Check infrastructure
   proofrun doctor
 
-  # Verify a specific change
-  proofrun context add-search
+  # Browse project knowledge
+  proofrun knowledge --list
+  proofrun knowledge interaction
+
+  # Start a verification session
   proofrun session start --change add-search
 
-  # Free-form verification (no change artifacts needed)
-  proofrun context
+  # Free-form verification
   proofrun session start --change "chinese-locale-audit"
 
   # Record evidence
@@ -81,8 +86,8 @@ EXAMPLES
   proofrun session stop
 
 PRESETS
-  expo               Expo managed workflow (Metro bundler, iosef, testID)
-  react-native-cli   React Native CLI (Metro bundler, iosef, testID)
+  expo               Expo managed workflow
+  react-native-cli   React Native CLI
 
 For the agent verification workflow, install the skill:
   npx skills add rokabytedev/proofrun -g
@@ -94,21 +99,19 @@ export function createCli() {
   program
     .name('proofrun')
     .description('AI agent verification CLI — capture evidence, generate reports')
-    .version('0.1.0')
+    .version('0.2.0')
     .addHelpText('after', HELP_TEXT)
     .configureOutput({
-      writeErr: () => {}, // Suppress commander's default error output
+      writeErr: () => {},
     })
     .exitOverride((err) => {
       if (err.code === 'commander.helpDisplayed' || err.code === 'commander.version') {
         process.exit(0);
       }
-      // For usage errors, output JSON
       console.log(JSON.stringify({ ok: false, command: null, data: null, error: err.message }));
       process.exit(2);
     });
 
-  // Show help when no command is provided
   program.action(() => {
     program.outputHelp();
   });
@@ -118,6 +121,7 @@ export function createCli() {
   registerSession(program);
   registerEvidence(program);
   registerContext(program);
+  registerKnowledge(program);
   registerReport(program);
 
   return program;

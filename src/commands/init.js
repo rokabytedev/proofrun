@@ -1,5 +1,5 @@
-import { existsSync, readFileSync, writeFileSync, mkdirSync, appendFileSync } from 'node:fs';
-import { resolve, dirname } from 'node:path';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, appendFileSync, readdirSync, copyFileSync } from 'node:fs';
+import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { success, error } from '../output.js';
 
@@ -13,32 +13,38 @@ export function registerInit(program) {
     .action(async (opts) => {
       const presetName = opts.preset;
       const presetsDir = resolve(__dirname, '../../presets');
-      const presetFile = resolve(presetsDir, `${presetName}.yaml`);
+      const presetDir = resolve(presetsDir, presetName);
 
-      if (!existsSync(presetFile)) {
+      if (!existsSync(presetDir)) {
         error('init', `Unknown preset "${presetName}". Available: expo, react-native-cli`);
       }
 
       const proofrunDir = resolve(process.cwd(), '.proofrun');
-      const configPath = resolve(proofrunDir, 'config.yaml');
+      const configPath = resolve(proofrunDir, 'config.toml');
 
       if (existsSync(configPath)) {
-        error('init', `.proofrun/config.yaml already exists. Delete it first to reinitialize.`);
+        error('init', `.proofrun/config.toml already exists. Delete it first to reinitialize.`);
       }
 
       // Create .proofrun/ directory
       mkdirSync(proofrunDir, { recursive: true });
 
-      // Copy preset to config
-      const presetContent = readFileSync(presetFile, 'utf8');
-      writeFileSync(configPath, presetContent);
+      // Copy config.toml from preset
+      const presetConfig = resolve(presetDir, 'config.toml');
+      if (existsSync(presetConfig)) {
+        writeFileSync(configPath, readFileSync(presetConfig, 'utf8'));
+      }
 
-      // Copy boundaries template
-      const boundariesDest = resolve(proofrunDir, 'boundaries.md');
-      if (!existsSync(boundariesDest)) {
-        const boundariesSrc = resolve(__dirname, '../../skills/proofrun/references/boundaries-template.md');
-        if (existsSync(boundariesSrc)) {
-          writeFileSync(boundariesDest, readFileSync(boundariesSrc, 'utf8'));
+      // Copy knowledge/ directory from preset
+      const knowledgeDir = resolve(proofrunDir, 'knowledge');
+      const presetKnowledge = resolve(presetDir, 'knowledge');
+      const copiedKnowledge = [];
+      if (existsSync(presetKnowledge)) {
+        mkdirSync(knowledgeDir, { recursive: true });
+        const files = readdirSync(presetKnowledge).filter(f => f.endsWith('.md'));
+        for (const file of files) {
+          copyFileSync(join(presetKnowledge, file), join(knowledgeDir, file));
+          copiedKnowledge.push(file);
         }
       }
 
@@ -55,11 +61,11 @@ export function registerInit(program) {
         appendFileSync(gitignorePath, addition);
       }
 
-      const createdDirs = ['.proofrun/'];
       success('init', {
         preset: presetName,
-        config_path: '.proofrun/config.yaml',
-        created_dirs: createdDirs,
+        config_path: '.proofrun/config.toml',
+        knowledge_dir: '.proofrun/knowledge',
+        knowledge_files: copiedKnowledge,
         gitignore_entries_added: newEntries,
       });
     });

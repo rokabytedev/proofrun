@@ -1,12 +1,12 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, rmSync, mkdtempSync, readFileSync } from 'node:fs';
+import { mkdirSync, rmSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
   ensureSimLockFiles, ensurePortLockFiles,
   acquireSimulatorSlot, acquirePort,
-  transferLockPid, isPortInUse, releaseLock,
+  isPortInUse, releaseLock,
 } from './locking.js';
 
 describe('acquireSimulatorSlot', () => {
@@ -98,11 +98,11 @@ describe('isPortInUse', () => {
   });
 });
 
-describe('transferLockPid', () => {
+describe('sessionBoundLocks', () => {
   let lockDir;
 
   beforeEach(() => {
-    lockDir = mkdtempSync(join(tmpdir(), 'proofrun-transfer-test-'));
+    lockDir = mkdtempSync(join(tmpdir(), 'proofrun-session-lock-test-'));
     ensureSimLockFiles(lockDir, 1);
   });
 
@@ -110,12 +110,13 @@ describe('transferLockPid', () => {
     rmSync(lockDir, { recursive: true, force: true });
   });
 
-  it('writes new PID to lock held file', () => {
+  it('lock held file can be overwritten with session ID', () => {
     const result = acquireSimulatorSlot(lockDir, 1);
     assert.notEqual(result, null);
-    transferLockPid(result.lock, 12345);
+    // Overwrite with session ID (as session start does)
+    writeFileSync(result.lock.heldPath, 'session-abc123');
     const content = readFileSync(result.lock.heldPath, 'utf8').trim();
-    assert.equal(content, '12345');
+    assert.equal(content, 'session-abc123');
     releaseLock(result.lock);
   });
 });

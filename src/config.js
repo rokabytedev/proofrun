@@ -1,9 +1,10 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
-import yaml from 'js-yaml';
+import toml from 'toml';
 
-const CONFIG_FILENAME = 'config.yaml';
+const CONFIG_FILENAME = 'config.toml';
 const CONFIG_DIR = '.proofrun';
+const KNOWLEDGE_DIR = 'knowledge';
 
 export function findConfigPath(startDir = process.cwd()) {
   let dir = startDir;
@@ -23,7 +24,7 @@ export function loadConfig(startDir = process.cwd()) {
   const raw = readFileSync(configPath, 'utf8');
   let config;
   try {
-    config = yaml.load(raw);
+    config = toml.parse(raw);
   } catch (e) {
     console.log(JSON.stringify({
       ok: false, command: null, data: null,
@@ -34,11 +35,11 @@ export function loadConfig(startDir = process.cwd()) {
   if (!config || typeof config !== 'object') {
     console.log(JSON.stringify({
       ok: false, command: null, data: null,
-      error: `Invalid config at ${configPath}: expected a YAML mapping`
+      error: `Invalid config at ${configPath}: expected a TOML table`
     }));
     process.exit(1);
   }
-  // Validate required fields and types
+
   const errors = validateConfig(config);
   if (errors.length > 0) {
     console.log(JSON.stringify({
@@ -50,24 +51,14 @@ export function loadConfig(startDir = process.cwd()) {
 
   config._path = configPath;
   config._dir = dirname(dirname(configPath)); // project root (parent of .proofrun/)
+  config._knowledgeDir = resolve(config._dir, CONFIG_DIR, KNOWLEDGE_DIR);
   return config;
 }
-
-export const KNOWN_TOP_LEVEL_KEYS = [
-  'platform', 'app', 'dev_server', 'simulator', 'port_range',
-  'interaction', 'change_context', 'app_knowledge', 'boundaries',
-  'reports', 'session',
-];
 
 export function validateConfig(config) {
   const errors = [];
 
-  // Required fields
-  if (!config.platform) errors.push('missing required field: platform');
-  if (!config.app?.bundle_id) errors.push('missing required field: app.bundle_id');
-  if (!config.dev_server?.start) errors.push('missing required field: dev_server.start');
-
-  // Type checks on numeric fields
+  // Type checks on preference fields
   if (config.simulator?.pool_size !== undefined && (!Number.isInteger(config.simulator.pool_size) || config.simulator.pool_size < 1)) {
     errors.push('simulator.pool_size must be a positive integer');
   }
@@ -77,17 +68,8 @@ export function validateConfig(config) {
   if (config.port_range?.end !== undefined && !Number.isInteger(config.port_range.end)) {
     errors.push('port_range.end must be an integer');
   }
-  if (config.dev_server?.startup_timeout !== undefined && (!Number.isInteger(config.dev_server.startup_timeout) || config.dev_server.startup_timeout < 1)) {
-    errors.push('dev_server.startup_timeout must be a positive integer');
-  }
 
   return errors;
-}
-
-export function getUnknownKeys(config) {
-  return Object.keys(config)
-    .filter(k => !k.startsWith('_'))
-    .filter(k => !KNOWN_TOP_LEVEL_KEYS.includes(k));
 }
 
 export function requireConfig(command) {
@@ -95,7 +77,7 @@ export function requireConfig(command) {
   if (!config) {
     console.log(JSON.stringify({
       ok: false, command, data: null,
-      error: 'No .proofrun/config.yaml found. Run `proofrun init --preset <name>` first.'
+      error: 'No .proofrun/config.toml found. Run `proofrun init --preset <name>` first.'
     }));
     process.exit(1);
   }
@@ -103,14 +85,10 @@ export function requireConfig(command) {
 }
 
 const DEFAULTS = {
-  platform: 'ios',
-  dev_server: { startup_timeout: 120 },
-  simulator: { pool_size: 5, device_types: { default: 'iPhone 16 Pro' } },
+  simulator: { pool_size: 5 },
   port_range: { start: 8090, end: 8099 },
-  interaction: { tool: 'iosef', tool_check: 'iosef --help', element_strategy: 'identifier', testid_attribute: 'testID' },
-  boundaries: { path: '.proofrun/boundaries.md' },
   reports: { output_dir: '.proofrun/reports', embed_screenshots: true, open_after_generate: false },
-  session: { lock_dir: '.proofrun/locks', evidence_dir: '.proofrun/sessions', max_retries_per_ac: 2 },
+  session: { lock_dir: '.proofrun/locks', evidence_dir: '.proofrun/sessions' },
 };
 
 export function withDefaults(config) {

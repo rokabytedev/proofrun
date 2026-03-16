@@ -1,5 +1,4 @@
-import { spawn } from 'node:child_process';
-import { createWriteStream, existsSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { success, error } from '../output.js';
 import { requireConfig, withDefaults } from '../config.js';
@@ -7,11 +6,10 @@ import {
   ensureSimLockFiles, ensurePortLockFiles,
   acquireSimulatorSlot, acquirePort,
   releaseLock, getLockedSlots, getLockedPorts,
-  transferLockPid,
 } from '../locking.js';
 import {
   generateSessionId, createSessionDir, saveSessionState,
-  findActiveSession, loadSessionState, initEvidence, loadEvidence,
+  findActiveSession, loadEvidence, initEvidence,
 } from '../session.js';
 
 export function registerSession(program) {
@@ -21,16 +19,15 @@ export function registerSession(program) {
 
   session
     .command('start')
-    .description('Start a new verification session')
-    .requiredOption('--change <name>', 'Change name to verify')
-    .option('--device <type>', 'Device type from config', 'default')
+    .description('Start a new verification session — acquire locks and create session state')
+    .requiredOption('--change <name>', 'Change name or verification label')
     .option('--timeout <seconds>', 'Max wait time for resources', '300')
     .action(async (opts) => {
       const rawConfig = requireConfig('session.start');
       const config = withDefaults(rawConfig);
       const projectRoot = config._dir;
 
-      // Check no active session (auto-recovers stale sessions)
+      // Check no active session
       const evidenceDir = resolve(projectRoot, config.session.evidence_dir);
       const existing = findActiveSession(evidenceDir, projectRoot);
       const recoveredSessions = existing?.recoveredSessions || [];
@@ -46,9 +43,9 @@ export function registerSession(program) {
       ensureSimLockFiles(lockDir, poolSize);
       ensurePortLockFiles(lockDir, portStart, portEnd);
 
-      // Acquire simulator slot (poll with timeout per spec)
+      // Acquire simulator slot (poll with timeout)
       const timeoutMs = parseInt(opts.timeout, 10) * 1000;
-      const pollInterval = 10000; // 10 seconds
+      const pollInterval = 10000;
       const startTime = Date.now();
       let simResult = null;
 
@@ -56,9 +53,8 @@ export function registerSession(program) {
         simResult = acquireSimulatorSlot(lockDir, poolSize);
         if (simResult) break;
         if (Date.now() - startTime >= timeoutMs) {
-          error('session.start', `All ${poolSize} simulator slots are locked. Waited ${opts.timeout}s. Consider increasing simulator.pool_size in .proofrun/config.yaml.`);
+          error('session.start', `All ${poolSize} simulator slots are locked. Waited ${opts.timeout}s. Consider increasing simulator.pool_size in .proofrun/config.toml.`);
         }
-        // Poll: wait and retry
         await new Promise(r => setTimeout(r, pollInterval));
       }
 
@@ -66,104 +62,42 @@ export function registerSession(program) {
       const portResult = acquirePort(lockDir, portStart, portEnd);
       if (!portResult) {
         releaseLock(simResult.lock);
-        error('session.start', `All ports in range ${portStart}-${portEnd} are locked or in use. Consider expanding port_range in .proofrun/config.yaml.`);
+        error('session.start', `All ports in range ${portStart}-${portEnd} are locked or in use. Consider expanding port_range in .proofrun/config.toml.`);
       }
-
-      // Resolve device name
-      const deviceType = opts.device;
-      const deviceName = config.simulator.device_types?.[deviceType] || config.simulator.device_types?.default || 'iPhone 16 Pro';
 
       // Create session
       const sessionId = generateSessionId();
       const sessionDir = createSessionDir(evidenceDir, sessionId);
 
-      // Start dev server
-      const serverCommand = config.dev_server.start.replace(/\{\{port\}\}/g, String(portResult.port));
-      const serverLogPath = resolve(sessionDir, 'server.log');
-      const logStream = createWriteStream(serverLogPath);
-
-      const [cmd, ...args] = serverCommand.split(' ');
-      const serverProcess = spawn(cmd, args, {
-        cwd: projectRoot,
-        stdio: ['ignore', 'pipe', 'pipe'],
-        detached: true,
-      });
-
-      serverProcess.stdout.pipe(logStream);
-      serverProcess.stderr.pipe(logStream);
-      serverProcess.unref();
-
-      // Transfer lock ownership to dev server PID so locks survive after CLI exits
-      if (serverProcess.pid) {
-        transferLockPid(simResult.lock, serverProcess.pid);
-        transferLockPid(portResult.lock, serverProcess.pid);
-      }
-
-      // Wait for ready signal
-      const readySignal = config.dev_server.ready_signal;
-      const startupTimeout = (config.dev_server.startup_timeout || 120) * 1000;
-      let serverReady = false;
-
-      if (readySignal) {
-        const readyRegex = new RegExp(readySignal);
-        serverReady = await new Promise((resolvePromise) => {
-          const timeout = setTimeout(() => resolvePromise(false), startupTimeout);
-          const checkReady = (data) => {
-            if (readyRegex.test(data.toString())) {
-              clearTimeout(timeout);
-              resolvePromise(true);
-            }
-          };
-          serverProcess.stdout.on('data', checkReady);
-          serverProcess.stderr.on('data', checkReady);
-          serverProcess.on('exit', () => {
-            clearTimeout(timeout);
-            resolvePromise(false);
-          });
-        });
-      } else {
-        // No ready signal — wait a moment and assume ready
-        await new Promise(r => setTimeout(r, 2000));
-        serverReady = true;
-      }
-
       const sessionState = {
         session_id: sessionId,
-        status: serverReady ? 'active' : 'starting',
+        status: 'active',
         change_name: opts.change,
         started_at: new Date().toISOString(),
         stopped_at: null,
         simulator: {
           slot: simResult.slot,
-          device_name: deviceName,
-          device_type: deviceType,
           lock_file: `.proofrun/locks/sim-${simResult.slot}.lock`,
         },
         port: {
           number: portResult.port,
           lock_file: `.proofrun/locks/port-${portResult.port}.lock`,
         },
-        dev_server: {
-          pid: serverProcess.pid,
-          command: serverCommand,
-          log_file: 'server.log',
-        },
       };
 
       saveSessionState(sessionDir, sessionState);
       initEvidence(sessionDir, sessionId, opts.change, sessionState.simulator, portResult.port);
 
+      // Write session ID to lock held files for session-bound locking
+      const { writeFileSync } = await import('node:fs');
+      writeFileSync(simResult.lock.heldPath, sessionId);
+      writeFileSync(portResult.lock.heldPath, sessionId);
+
       const responseData = {
         session_id: sessionId,
         change_name: opts.change,
-        simulator: sessionState.simulator,
-        port: { number: portResult.port, lock_file: sessionState.port.lock_file },
-        dev_server: {
-          pid: serverProcess.pid,
-          command: serverCommand,
-          log_file: `.proofrun/sessions/${sessionId}/server.log`,
-          status: serverReady ? 'ready' : 'starting',
-        },
+        port: portResult.port,
+        simulator_slot: simResult.slot,
         session_dir: `.proofrun/sessions/${sessionId}`,
       };
       if (recoveredSessions.length > 0) {
@@ -174,7 +108,7 @@ export function registerSession(program) {
 
   session
     .command('stop')
-    .description('Stop the active verification session')
+    .description('Stop the active verification session — release all locks')
     .action(async () => {
       const rawConfig = requireConfig('session.stop');
       const config = withDefaults(rawConfig);
@@ -187,16 +121,6 @@ export function registerSession(program) {
       }
 
       const { sessionDir, state } = active;
-
-      // Kill dev server process group (detached: true creates a new group)
-      if (state.dev_server?.pid) {
-        try {
-          process.kill(-state.dev_server.pid, 'SIGTERM');
-        } catch {
-          // Process group already dead, try single process
-          try { process.kill(state.dev_server.pid, 'SIGTERM'); } catch { /* already dead */ }
-        }
-      }
 
       // Release locks
       const lockDir = resolve(projectRoot, config.session.lock_dir);
@@ -226,7 +150,6 @@ export function registerSession(program) {
         released: {
           simulator_slot: state.simulator?.slot,
           port: state.port?.number,
-          dev_server_pid: state.dev_server?.pid,
         },
         evidence_entries: entryCount,
         duration_seconds: duration,
@@ -263,9 +186,8 @@ export function registerSession(program) {
           active: true,
           session_id: active.sessionId,
           change_name: state.change_name,
-          simulator: state.simulator,
+          simulator_slot: state.simulator?.slot,
           port: state.port?.number,
-          dev_server: { pid: state.dev_server?.pid, status: 'running' },
           started_at: state.started_at,
           evidence_entries: evidence?.entries?.length || 0,
           pool,
