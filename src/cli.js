@@ -3,9 +3,10 @@ import { registerInit } from './commands/init.js';
 import { registerDoctor } from './commands/doctor.js';
 import { registerSession } from './commands/session.js';
 import { registerEvidence } from './commands/evidence.js';
-import { registerContext } from './commands/context.js';
+import { registerInfo } from './commands/info.js';
 import { registerKnowledge } from './commands/knowledge.js';
 import { registerReport } from './commands/report.js';
+import { setJsonMode } from './output.js';
 
 const HELP_TEXT = `
 proofrun — AI agent verification CLI
@@ -16,36 +17,35 @@ capture evidence, and generate interactive HTML reports for human review.
 SETUP COMMANDS
   proofrun init --preset <name>          Create .proofrun/ with config and knowledge
   proofrun doctor                        Check infrastructure readiness
+  proofrun info                          Project readiness: config, knowledge, session, diagnostics
 
 SESSION COMMANDS
-  proofrun session start --change <name> Acquire simulator slot and port
-    [--timeout <seconds>]                  Max wait for resources (default: 300)
-  proofrun session stop                  Release all locks, finalize session
-  proofrun session status                Show active session or pool availability
-
-CONTEXT COMMANDS
-  proofrun context                       Get config preferences and knowledge path
-  proofrun context <change>              Same, with change name echoed back
+  proofrun session start                 Start a verification session
+    --change <name>                        Change name or verification label (required)
+    --simulator <UDID>                     Simulator UDID to lock (required)
+  proofrun session stop                  Release simulator lock, finalize session
+  proofrun session status                Show active session or lock state
 
 KNOWLEDGE COMMANDS
   proofrun knowledge --list              List available knowledge topics
   proofrun knowledge <topic>             Read a specific knowledge file
-    [--json]                               Output as JSON instead of plain text
 
 EVIDENCE COMMANDS
   proofrun step <description>            Record a verification step
-    [--ac <n>]                             Associate with acceptance criterion
+    [--criterion <name>]                   Associate with named criterion
     [--command <cmd>]                      Command used for this step
   proofrun screenshot <file>             Attach a screenshot to evidence
-    [--ac <n>]                             Associate with acceptance criterion
+    [--criterion <name>]                   Associate with named criterion
     [--note <text>]                        Note about the screenshot
-  proofrun judge --ac <n>                Record judgment for a criterion
+  proofrun judge                         Record judgment for a criterion
+    --criterion <name>                     Criterion name (required)
     --pass <reasoning>                     Mark as passed
     --fail <reasoning>                     Mark as failed
     --human <reasoning>                    Mark as requiring human verification
   proofrun note <text>                   Add freeform note to evidence log
-  proofrun fix --ac <n>                  Record a code fix
-    --description <text>                   Description of the fix
+  proofrun fix                           Record a code fix
+    --criterion <name>                     Criterion name (required)
+    --description <text>                   Description of the fix (required)
   proofrun evidence                      Show evidence summary for active session
 
 REPORT COMMANDS
@@ -53,6 +53,9 @@ REPORT COMMANDS
     [--output <path>]                      Custom output path
     [--open]                               Open in browser after generation
     [--session <id>]                       Use specific session (default: active)
+
+GLOBAL FLAGS
+  --json                                 Output in JSON format (default: plain text)
 
 EXIT CODES
   0  Success
@@ -63,6 +66,9 @@ EXAMPLES
   # Initialize for an Expo project
   proofrun init --preset expo
 
+  # Check project readiness
+  proofrun info
+
   # Check infrastructure
   proofrun doctor
 
@@ -70,16 +76,13 @@ EXAMPLES
   proofrun knowledge --list
   proofrun knowledge interaction
 
-  # Start a verification session
-  proofrun session start --change add-search
-
-  # Free-form verification
-  proofrun session start --change "chinese-locale-audit"
+  # Start a verification session (agent provides UDID)
+  proofrun session start --change chinese-locale-audit --simulator B1DBC6F9-5DB6-4DC8-9727-36EC26DDA466
 
   # Record evidence
-  proofrun step "Navigate to Library tab" --ac 1
-  proofrun screenshot /tmp/screen.jpeg --ac 1 --note "Library screen visible"
-  proofrun judge --ac 1 --pass "Search bar found at expected position"
+  proofrun step "Navigate to Settings tab" --criterion settings-translated
+  proofrun screenshot /tmp/screen.jpeg --criterion settings-translated --note "Settings screen visible"
+  proofrun judge --criterion settings-translated --pass "All labels translated correctly"
 
   # Generate report and clean up
   proofrun report --open
@@ -100,6 +103,7 @@ export function createCli() {
     .name('proofrun')
     .description('AI agent verification CLI — capture evidence, generate reports')
     .version('0.2.0')
+    .option('--json', 'Output in JSON format')
     .addHelpText('after', HELP_TEXT)
     .configureOutput({
       writeErr: () => {},
@@ -108,9 +112,14 @@ export function createCli() {
       if (err.code === 'commander.helpDisplayed' || err.code === 'commander.version') {
         process.exit(0);
       }
-      console.log(JSON.stringify({ ok: false, command: null, data: null, error: err.message }));
+      console.error(`Error: ${err.message}`);
       process.exit(2);
     });
+
+  program.hook('preAction', (thisCommand) => {
+    const opts = thisCommand.optsWithGlobals();
+    setJsonMode(!!opts.json);
+  });
 
   program.action(() => {
     program.outputHelp();
@@ -120,7 +129,7 @@ export function createCli() {
   registerDoctor(program);
   registerSession(program);
   registerEvidence(program);
-  registerContext(program);
+  registerInfo(program);
   registerKnowledge(program);
   registerReport(program);
 

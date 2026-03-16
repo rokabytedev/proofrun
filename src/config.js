@@ -6,6 +6,8 @@ const CONFIG_FILENAME = 'config.toml';
 const CONFIG_DIR = '.proofrun';
 const KNOWLEDGE_DIR = 'knowledge';
 
+export const LOCK_DIR = '.proofrun/locks';
+
 export function findConfigPath(startDir = process.cwd()) {
   let dir = startDir;
   while (true) {
@@ -26,26 +28,17 @@ export function loadConfig(startDir = process.cwd()) {
   try {
     config = toml.parse(raw);
   } catch (e) {
-    console.log(JSON.stringify({
-      ok: false, command: null, data: null,
-      error: `Failed to parse ${configPath}: ${e.message}`
-    }));
+    console.error(`Error: Failed to parse ${configPath}: ${e.message}`);
     process.exit(1);
   }
   if (!config || typeof config !== 'object') {
-    console.log(JSON.stringify({
-      ok: false, command: null, data: null,
-      error: `Invalid config at ${configPath}: expected a TOML table`
-    }));
+    console.error(`Error: Invalid config at ${configPath}: expected a TOML table`);
     process.exit(1);
   }
 
   const errors = validateConfig(config);
   if (errors.length > 0) {
-    console.log(JSON.stringify({
-      ok: false, command: null, data: null,
-      error: `Config validation failed: ${errors.join('; ')}`
-    }));
+    console.error(`Error: Config validation failed: ${errors.join('; ')}`);
     process.exit(1);
   }
 
@@ -57,38 +50,22 @@ export function loadConfig(startDir = process.cwd()) {
 
 export function validateConfig(config) {
   const errors = [];
-
-  // Type checks on preference fields
-  if (config.simulator?.pool_size !== undefined && (!Number.isInteger(config.simulator.pool_size) || config.simulator.pool_size < 1)) {
-    errors.push('simulator.pool_size must be a positive integer');
-  }
-  if (config.port_range?.start !== undefined && !Number.isInteger(config.port_range.start)) {
-    errors.push('port_range.start must be an integer');
-  }
-  if (config.port_range?.end !== undefined && !Number.isInteger(config.port_range.end)) {
-    errors.push('port_range.end must be an integer');
-  }
-
+  // No required fields — all config is optional preferences
   return errors;
 }
 
 export function requireConfig(command) {
   const config = loadConfig();
   if (!config) {
-    console.log(JSON.stringify({
-      ok: false, command, data: null,
-      error: 'No .proofrun/config.toml found. Run `proofrun init --preset <name>` first.'
-    }));
+    console.error('Error: No .proofrun/config.toml found. Run `proofrun init --preset <name>` first.');
     process.exit(1);
   }
   return config;
 }
 
 const DEFAULTS = {
-  simulator: { pool_size: 5 },
-  port_range: { start: 8090, end: 8099 },
   reports: { output_dir: '.proofrun/reports', embed_screenshots: true, open_after_generate: false },
-  session: { lock_dir: '.proofrun/locks', evidence_dir: '.proofrun/sessions' },
+  session: { evidence_dir: '.proofrun/sessions' },
 };
 
 export function withDefaults(config) {

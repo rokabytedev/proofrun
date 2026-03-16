@@ -67,6 +67,21 @@ export function registerInit(program) {
         knowledge_dir: '.proofrun/knowledge',
         knowledge_files: copiedKnowledge,
         gitignore_entries_added: newEntries,
+      }, (data) => {
+        const lines = [
+          `Initialized proofrun with preset: ${data.preset}`,
+          `Config: ${data.config_path}`,
+          `Knowledge: ${data.knowledge_dir} (${data.knowledge_files.length} file(s): ${data.knowledge_files.join(', ')})`,
+        ];
+        if (data.gitignore_entries_added.length > 0) {
+          lines.push(`Added to .gitignore: ${data.gitignore_entries_added.join(', ')}`);
+        }
+        lines.push('');
+        lines.push('Next steps:');
+        lines.push('  1. Run `proofrun info` to verify setup');
+        lines.push('  2. Read environment.md knowledge and fill in placeholders');
+        lines.push('  3. Start a session: `proofrun session start --change <name> --simulator <UDID>`');
+        return lines.join('\n');
       });
     });
 }
