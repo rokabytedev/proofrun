@@ -27,8 +27,8 @@ export function registerReport(program) {
         sessionId = opts.session;
         state = loadSessionState(sessionDir);
       } else {
-        const active = findActiveSession(evidenceDir, projectRoot);
-        if (active && active.sessionId) {
+        const active = findActiveSession(evidenceDir);
+        if (active) {
           sessionDir = active.sessionDir;
           sessionId = active.sessionId;
           state = active.state;
@@ -96,54 +96,67 @@ export function registerReport(program) {
         session_id: sessionId,
         change_name: changeName,
         summary: reportData.summary,
-        acs: reportData.acs.map(ac => ({
-          ac: ac.ac,
-          status: ac.latest_status,
-          judgments: ac.judgments.length,
-          screenshots: ac.screenshots.length,
-          fixes: ac.fixes.length,
+        criteria: reportData.criteria.map(c => ({
+          criterion: c.criterion,
+          status: c.latest_status,
+          judgments: c.judgments.length,
+          screenshots: c.screenshots.length,
+          fixes: c.fixes.length,
         })),
         report_size_bytes: reportSize,
         opened_in_browser: shouldOpen,
-      });
+      }, (data) =>
+        `Report generated: ${data.report_path}\n` +
+        `Session: ${data.session_id}\n` +
+        `Change: ${data.change_name}\n` +
+        `Criteria: ${data.criteria.length} (${data.summary.pass} pass, ${data.summary.fail} fail, ${data.summary.human_required} human)` +
+        (data.opened_in_browser ? '\nOpened in browser.' : '')
+      );
     });
 }
 
 export function buildReportData(evidence, state, sessionDir, config) {
   const entries = evidence.entries;
 
-  // Group entries by AC
-  const acMap = new Map();
+  // Group entries by criterion name
+  const criterionMap = new Map();
   const generalEntries = [];
 
   for (const entry of entries) {
-    if (entry.ac != null) {
-      if (!acMap.has(entry.ac)) {
-        acMap.set(entry.ac, { ac: entry.ac, steps: [], screenshots: [], judgments: [], fixes: [], notes: [] });
+    if (entry.criterion != null) {
+      if (!criterionMap.has(entry.criterion)) {
+        criterionMap.set(entry.criterion, {
+          criterion: entry.criterion,
+          steps: [],
+          screenshots: [],
+          judgments: [],
+          fixes: [],
+          notes: [],
+        });
       }
-      const acData = acMap.get(entry.ac);
-      if (entry.type === 'step') acData.steps.push(entry);
-      else if (entry.type === 'screenshot') acData.screenshots.push(embedScreenshot(entry, sessionDir, config));
-      else if (entry.type === 'judgment') acData.judgments.push(entry);
-      else if (entry.type === 'fix') acData.fixes.push(entry);
-      else if (entry.type === 'note') acData.notes.push(entry);
+      const criterionData = criterionMap.get(entry.criterion);
+      if (entry.type === 'step') criterionData.steps.push(entry);
+      else if (entry.type === 'screenshot') criterionData.screenshots.push(embedScreenshot(entry, sessionDir, config));
+      else if (entry.type === 'judgment') criterionData.judgments.push(entry);
+      else if (entry.type === 'fix') criterionData.fixes.push(entry);
+      else if (entry.type === 'note') criterionData.notes.push(entry);
     } else {
       generalEntries.push(entry);
     }
   }
 
-  const acs = Array.from(acMap.values()).sort((a, b) => a.ac - b.ac);
-  for (const ac of acs) {
-    const lastJudgment = ac.judgments[ac.judgments.length - 1];
-    ac.latest_status = lastJudgment?.status || 'pending';
+  const criteria = Array.from(criterionMap.values());
+  for (const c of criteria) {
+    const lastJudgment = c.judgments[c.judgments.length - 1];
+    c.latest_status = lastJudgment?.status || 'pending';
   }
 
   const summary = {
-    total_acs: acs.length,
-    pass: acs.filter(a => a.latest_status === 'pass').length,
-    fail: acs.filter(a => a.latest_status === 'fail').length,
-    human_required: acs.filter(a => a.latest_status === 'human_required').length,
-    pending: acs.filter(a => a.latest_status === 'pending').length,
+    total_criteria: criteria.length,
+    pass: criteria.filter(c => c.latest_status === 'pass').length,
+    fail: criteria.filter(c => c.latest_status === 'fail').length,
+    human_required: criteria.filter(c => c.latest_status === 'human_required').length,
+    pending: criteria.filter(c => c.latest_status === 'pending').length,
     total_steps: entries.filter(e => e.type === 'step').length,
     total_screenshots: entries.filter(e => e.type === 'screenshot').length,
     total_fixes: entries.filter(e => e.type === 'fix').length,
@@ -154,9 +167,8 @@ export function buildReportData(evidence, state, sessionDir, config) {
     change_name: evidence.change_name,
     started_at: evidence.started_at,
     simulator: evidence.simulator,
-    port: evidence.port,
     summary,
-    acs,
+    criteria,
     general_entries: generalEntries,
     generated_at: new Date().toISOString(),
   };

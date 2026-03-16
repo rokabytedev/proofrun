@@ -1,14 +1,14 @@
 import { copyFileSync, existsSync } from 'node:fs';
-import { resolve, basename, extname } from 'node:path';
+import { resolve, extname } from 'node:path';
 import { success, error } from '../output.js';
 import { requireConfig, withDefaults } from '../config.js';
 import { findActiveSession, appendEvidence, loadEvidence } from '../session.js';
 
 function requireActiveSession(config, command) {
   const evidenceDir = resolve(config._dir, config.session.evidence_dir);
-  const active = findActiveSession(evidenceDir, config._dir);
-  if (!active || !active.sessionId) {
-    error(command, 'No active session. Run `proofrun session start --change <name>` first.');
+  const active = findActiveSession(evidenceDir);
+  if (!active) {
+    error(command, 'No active session. Run `proofrun session start --change <name> --simulator <UDID>` first.');
   }
   return active;
 }
@@ -19,7 +19,7 @@ export function registerEvidence(program) {
     .command('step')
     .description('Record a verification step')
     .argument('<description>', 'Step description')
-    .option('--ac <n>', 'Acceptance criterion number')
+    .option('--criterion <name>', 'Criterion name to associate with')
     .option('--command <cmd>', 'Command used for this step')
     .action(async (description, opts) => {
       const config = withDefaults(requireConfig('step'));
@@ -27,7 +27,7 @@ export function registerEvidence(program) {
 
       const entry = appendEvidence(active.sessionDir, {
         type: 'step',
-        ac: opts.ac ? parseInt(opts.ac, 10) : null,
+        criterion: opts.criterion || null,
         description,
         command: opts.command || null,
       });
@@ -36,12 +36,14 @@ export function registerEvidence(program) {
       success('step', {
         entry_id: entry.id,
         type: 'step',
-        ac: entry.ac,
+        criterion: entry.criterion,
         description: entry.description,
         command: entry.command,
         timestamp: entry.timestamp,
         total_entries: evidence.entries.length,
-      });
+      }, (data) =>
+        `Step recorded [#${data.entry_id}]${data.criterion ? ` (${data.criterion})` : ''}: ${data.description}`
+      );
     });
 
   // proofrun screenshot
@@ -49,7 +51,7 @@ export function registerEvidence(program) {
     .command('screenshot')
     .description('Attach a screenshot to the evidence log')
     .argument('<file>', 'Path to screenshot image file')
-    .option('--ac <n>', 'Acceptance criterion number')
+    .option('--criterion <name>', 'Criterion name to associate with')
     .option('--note <text>', 'Note about the screenshot')
     .action(async (file, opts) => {
       const config = withDefaults(requireConfig('screenshot'));
@@ -62,10 +64,10 @@ export function registerEvidence(program) {
       // Copy to session screenshots dir
       const evidence = loadEvidence(active.sessionDir);
       const entryNum = evidence.entries.length + 1;
-      const ac = opts.ac ? parseInt(opts.ac, 10) : null;
+      const criterion = opts.criterion || null;
       const ext = extname(file) || '.jpeg';
-      const storedName = ac
-        ? `${String(entryNum).padStart(3, '0')}-ac${ac}${ext}`
+      const storedName = criterion
+        ? `${String(entryNum).padStart(3, '0')}-${criterion}${ext}`
         : `${String(entryNum).padStart(3, '0')}${ext}`;
       const storedPath = resolve(active.sessionDir, 'screenshots', storedName);
       copyFileSync(file, storedPath);
@@ -75,7 +77,7 @@ export function registerEvidence(program) {
 
       const entry = appendEvidence(active.sessionDir, {
         type: 'screenshot',
-        ac,
+        criterion,
         source_path: file,
         stored_path: `screenshots/${storedName}`,
         note: opts.note || null,
@@ -85,24 +87,27 @@ export function registerEvidence(program) {
       success('screenshot', {
         entry_id: entry.id,
         type: 'screenshot',
-        ac: entry.ac,
+        criterion: entry.criterion,
         source_path: file,
         stored_path: `.proofrun/sessions/${active.sessionId}/screenshots/${storedName}`,
         note: entry.note,
         file_size_bytes: fileSize,
         timestamp: entry.timestamp,
         total_entries: updatedEvidence.entries.length,
-      });
+      }, (data) =>
+        `Screenshot recorded [#${data.entry_id}]${data.criterion ? ` (${data.criterion})` : ''}: ${data.stored_path}` +
+        (data.note ? ` — ${data.note}` : '')
+      );
     });
 
   // proofrun judge
   program
     .command('judge')
-    .description('Record pass/fail judgment for an acceptance criterion')
-    .requiredOption('--ac <n>', 'Acceptance criterion number')
-    .option('--pass <reasoning>', 'Mark AC as passed with reasoning')
-    .option('--fail <reasoning>', 'Mark AC as failed with reasoning')
-    .option('--human <reasoning>', 'Mark AC as requiring human verification')
+    .description('Record pass/fail judgment for a criterion')
+    .requiredOption('--criterion <name>', 'Criterion name')
+    .option('--pass <reasoning>', 'Mark as passed with reasoning')
+    .option('--fail <reasoning>', 'Mark as failed with reasoning')
+    .option('--human <reasoning>', 'Mark as requiring human verification')
     .action(async (opts) => {
       const config = withDefaults(requireConfig('judge'));
       const active = requireActiveSession(config, 'judge');
@@ -115,16 +120,14 @@ export function registerEvidence(program) {
         error('judge', 'Must specify one of --pass, --fail, or --human with reasoning text.', 2);
       }
 
-      const ac = parseInt(opts.ac, 10);
-
-      // Count prior judgments for this AC
+      // Count prior judgments for this criterion
       const evidence = loadEvidence(active.sessionDir);
-      const priorJudgments = evidence.entries.filter(e => e.type === 'judgment' && e.ac === ac);
+      const priorJudgments = evidence.entries.filter(e => e.type === 'judgment' && e.criterion === opts.criterion);
       const sequence = priorJudgments.length + 1;
 
       const entry = appendEvidence(active.sessionDir, {
         type: 'judgment',
-        ac,
+        criterion: opts.criterion,
         status,
         reasoning,
         judgment_sequence: sequence,
@@ -134,12 +137,15 @@ export function registerEvidence(program) {
       success('judge', {
         entry_id: entry.id,
         type: 'judgment',
-        ac,
+        criterion: opts.criterion,
         status,
         reasoning,
         judgment_sequence: sequence,
         timestamp: entry.timestamp,
         total_entries: updatedEvidence.entries.length,
+      }, (data) => {
+        const statusSymbol = data.status === 'pass' ? '✓' : data.status === 'fail' ? '✗' : '?';
+        return `Judgment [#${data.entry_id}] ${statusSymbol} ${data.criterion}: ${data.status}\n  ${data.reasoning}`;
       });
     });
 
@@ -164,14 +170,14 @@ export function registerEvidence(program) {
         text,
         timestamp: entry.timestamp,
         total_entries: evidence.entries.length,
-      });
+      }, (data) => `Note recorded [#${data.entry_id}]: ${data.text}`);
     });
 
   // proofrun fix
   program
     .command('fix')
-    .description('Record a code fix for an acceptance criterion')
-    .requiredOption('--ac <n>', 'Acceptance criterion number')
+    .description('Record a code fix for a criterion')
+    .requiredOption('--criterion <name>', 'Criterion name')
     .requiredOption('--description <text>', 'Description of the fix')
     .action(async (opts) => {
       const config = withDefaults(requireConfig('fix'));
@@ -179,7 +185,7 @@ export function registerEvidence(program) {
 
       const entry = appendEvidence(active.sessionDir, {
         type: 'fix',
-        ac: parseInt(opts.ac, 10),
+        criterion: opts.criterion,
         description: opts.description,
       });
 
@@ -187,11 +193,11 @@ export function registerEvidence(program) {
       success('fix', {
         entry_id: entry.id,
         type: 'fix',
-        ac: entry.ac,
+        criterion: entry.criterion,
         description: entry.description,
         timestamp: entry.timestamp,
         total_entries: evidence.entries.length,
-      });
+      }, (data) => `Fix recorded [#${data.entry_id}] (${data.criterion}): ${data.description}`);
     });
 
   // proofrun evidence
@@ -205,26 +211,33 @@ export function registerEvidence(program) {
       const evidence = loadEvidence(active.sessionDir);
       const entries = evidence.entries;
 
-      // Group by AC
-      const acMap = new Map();
+      // Group by criterion name
+      const criterionMap = new Map();
       let unassociatedNotes = 0;
       let unassociatedSteps = 0;
 
       for (const entry of entries) {
-        if (entry.ac != null) {
-          if (!acMap.has(entry.ac)) {
-            acMap.set(entry.ac, { ac: entry.ac, latest_status: null, judgments: 0, steps: 0, screenshots: 0, fixes: 0 });
+        if (entry.criterion != null) {
+          if (!criterionMap.has(entry.criterion)) {
+            criterionMap.set(entry.criterion, {
+              criterion: entry.criterion,
+              latest_status: null,
+              judgments: 0,
+              steps: 0,
+              screenshots: 0,
+              fixes: 0,
+            });
           }
-          const acData = acMap.get(entry.ac);
+          const criterionData = criterionMap.get(entry.criterion);
           if (entry.type === 'judgment') {
-            acData.judgments++;
-            acData.latest_status = entry.status;
+            criterionData.judgments++;
+            criterionData.latest_status = entry.status;
           } else if (entry.type === 'step') {
-            acData.steps++;
+            criterionData.steps++;
           } else if (entry.type === 'screenshot') {
-            acData.screenshots++;
+            criterionData.screenshots++;
           } else if (entry.type === 'fix') {
-            acData.fixes++;
+            criterionData.fixes++;
           }
         } else {
           if (entry.type === 'note') unassociatedNotes++;
@@ -232,13 +245,32 @@ export function registerEvidence(program) {
         }
       }
 
-      const acs = Array.from(acMap.values()).sort((a, b) => a.ac - b.ac);
+      const criteria = Array.from(criterionMap.values());
 
       success('evidence', {
         session_id: active.sessionId,
-        acs,
+        criteria,
         unassociated_entries: { notes: unassociatedNotes, steps: unassociatedSteps },
         total_entries: entries.length,
+      }, (data) => {
+        const lines = [`Session: ${data.session_id}`, `Total entries: ${data.total_entries}`, ''];
+        if (data.criteria.length === 0) {
+          lines.push('No criteria recorded yet.');
+        } else {
+          lines.push('Criteria:');
+          for (const c of data.criteria) {
+            const statusSymbol = c.latest_status === 'pass' ? '✓'
+              : c.latest_status === 'fail' ? '✗'
+              : c.latest_status === 'human_required' ? '?'
+              : '…';
+            lines.push(`  ${statusSymbol} ${c.criterion}: ${c.latest_status || 'pending'} (${c.steps} steps, ${c.screenshots} screenshots, ${c.judgments} judgments)`);
+          }
+        }
+        if (data.unassociated_entries.notes > 0 || data.unassociated_entries.steps > 0) {
+          lines.push('');
+          lines.push(`Unassociated: ${data.unassociated_entries.notes} notes, ${data.unassociated_entries.steps} steps`);
+        }
+        return lines.join('\n');
       });
     });
 }

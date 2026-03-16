@@ -29,7 +29,7 @@ describe('appendEvidence', () => {
     tmpDir = mkdtempSync(join(tmpdir(), 'proofrun-session-test-'));
     sessionDir = resolve(tmpDir, 'test-session');
     mkdirSync(resolve(sessionDir, 'screenshots'), { recursive: true });
-    initEvidence(sessionDir, 'test-session', 'test-change', {}, 8090);
+    initEvidence(sessionDir, 'test-session', 'test-change', 'UDID-1234');
   });
 
   afterEach(() => {
@@ -117,57 +117,74 @@ describe('findActiveSession', () => {
   });
 
   it('returns null when no sessions exist', () => {
-    assert.equal(findActiveSession(evidenceDir, tmpDir), null);
+    assert.equal(findActiveSession(evidenceDir), null);
   });
 
   it('returns null for non-existent evidence dir', () => {
-    assert.equal(findActiveSession(resolve(tmpDir, 'nonexistent'), tmpDir), null);
+    assert.equal(findActiveSession(resolve(tmpDir, 'nonexistent')), null);
   });
 
   it('picks the newest active session', () => {
-    // Create two sessions — second is newer (sorted reverse)
     const s1Dir = resolve(evidenceDir, '20260101-aaaaaa');
     const s2Dir = resolve(evidenceDir, '20260102-bbbbbb');
     mkdirSync(s1Dir, { recursive: true });
     mkdirSync(s2Dir, { recursive: true });
 
-    // s1 is stopped, s2 is active with current PID (alive)
     saveSessionState(s1Dir, { session_id: 's1', status: 'stopped' });
-    saveSessionState(s2Dir, { session_id: 's2', status: 'active', dev_server: { pid: process.pid } });
+    saveSessionState(s2Dir, { session_id: 's2', status: 'active', simulator: 'UDID-ABC' });
 
-    const result = findActiveSession(evidenceDir, tmpDir);
+    const result = findActiveSession(evidenceDir);
     assert.equal(result.sessionId, '20260102-bbbbbb');
   });
 
-  it('detects stale session with dead PID and marks it crashed', () => {
-    const sDir = resolve(evidenceDir, '20260101-stale1');
+  it('returns null when all sessions are stopped', () => {
+    const sDir = resolve(evidenceDir, '20260101-stopped1');
     mkdirSync(sDir, { recursive: true });
-    saveSessionState(sDir, {
-      session_id: 'stale1', status: 'active',
-      dev_server: { pid: 999999 }, // Dead PID
-      simulator: { slot: 0 },
-      port: { number: 8090 },
-    });
+    saveSessionState(sDir, { session_id: 'stopped1', status: 'stopped' });
 
-    const result = findActiveSession(evidenceDir, tmpDir);
-    // Should have recovered but no active session
-    assert.ok(!result || !result.sessionId);
-
-    // Verify session was marked crashed
-    const state = loadSessionState(sDir);
-    assert.equal(state.status, 'crashed');
-    assert.ok(state.stopped_at);
+    const result = findActiveSession(evidenceDir);
+    assert.equal(result, null);
   });
 
-  it('detects stale session without PID and marks it crashed', () => {
+  it('a session without PID is still active (no PID check)', () => {
     const sDir = resolve(evidenceDir, '20260101-nopid1');
     mkdirSync(sDir, { recursive: true });
-    saveSessionState(sDir, { session_id: 'nopid1', status: 'active' });
+    saveSessionState(sDir, { session_id: 'nopid1', status: 'active', simulator: 'UDID-XYZ' });
 
-    const result = findActiveSession(evidenceDir, tmpDir);
-    assert.ok(!result || !result.sessionId);
+    const result = findActiveSession(evidenceDir);
+    assert.equal(result.sessionId, '20260101-nopid1');
+    assert.equal(result.state.status, 'active');
+  });
+});
 
-    const state = loadSessionState(sDir);
-    assert.equal(state.status, 'crashed');
+describe('initEvidence', () => {
+  let tmpDir, sessionDir;
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), 'proofrun-init-evidence-test-'));
+    sessionDir = resolve(tmpDir, 'test-session');
+    mkdirSync(resolve(sessionDir, 'screenshots'), { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('stores simulator UDID string', () => {
+    initEvidence(sessionDir, 'test-session', 'test-change', 'B1DBC6F9-5DB6-4DC8-9727-36EC26DDA466');
+    const evidence = loadEvidence(sessionDir);
+    assert.equal(evidence.simulator, 'B1DBC6F9-5DB6-4DC8-9727-36EC26DDA466');
+  });
+
+  it('stores null when no UDID provided', () => {
+    initEvidence(sessionDir, 'test-session', 'test-change', null);
+    const evidence = loadEvidence(sessionDir);
+    assert.equal(evidence.simulator, null);
+  });
+
+  it('does not store port', () => {
+    initEvidence(sessionDir, 'test-session', 'test-change', 'UDID-1234');
+    const evidence = loadEvidence(sessionDir);
+    assert.equal(evidence.port, undefined);
   });
 });

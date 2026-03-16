@@ -1,12 +1,8 @@
-import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { writeFileSync } from 'node:fs';
 import { success, error } from '../output.js';
-import { requireConfig, withDefaults } from '../config.js';
-import {
-  ensureSimLockFiles, ensurePortLockFiles,
-  acquireSimulatorSlot, acquirePort,
-  releaseLock, getLockedSlots, getLockedPorts,
-} from '../locking.js';
+import { requireConfig, withDefaults, LOCK_DIR } from '../config.js';
+import { acquireLock, releaseLock, listLocks } from '../locking.js';
 import {
   generateSessionId, createSessionDir, saveSessionState,
   findActiveSession, loadEvidence, initEvidence,
@@ -19,9 +15,9 @@ export function registerSession(program) {
 
   session
     .command('start')
-    .description('Start a new verification session — acquire locks and create session state')
+    .description('Start a new verification session — lock simulator by UDID')
     .requiredOption('--change <name>', 'Change name or verification label')
-    .option('--timeout <seconds>', 'Max wait time for resources', '300')
+    .requiredOption('--simulator <UDID>', 'Simulator UDID to lock for this session')
     .action(async (opts) => {
       const rawConfig = requireConfig('session.start');
       const config = withDefaults(rawConfig);
@@ -29,40 +25,22 @@ export function registerSession(program) {
 
       // Check no active session
       const evidenceDir = resolve(projectRoot, config.session.evidence_dir);
-      const existing = findActiveSession(evidenceDir, projectRoot);
-      const recoveredSessions = existing?.recoveredSessions || [];
-      if (existing && existing.sessionId) {
+      const existing = findActiveSession(evidenceDir);
+      if (existing) {
         error('session.start', `Active session already exists: ${existing.sessionId}. Run \`proofrun session stop\` first.`);
       }
 
-      const lockDir = resolve(projectRoot, config.session.lock_dir);
-      const poolSize = config.simulator.pool_size;
-      const { start: portStart, end: portEnd } = config.port_range;
+      const lockDir = resolve(projectRoot, LOCK_DIR);
+      const resourceName = `sim-${opts.simulator}`;
 
-      // Ensure lock files exist
-      ensureSimLockFiles(lockDir, poolSize);
-      ensurePortLockFiles(lockDir, portStart, portEnd);
-
-      // Acquire simulator slot (poll with timeout)
-      const timeoutMs = parseInt(opts.timeout, 10) * 1000;
-      const pollInterval = 10000;
-      const startTime = Date.now();
-      let simResult = null;
-
-      while (!simResult) {
-        simResult = acquireSimulatorSlot(lockDir, poolSize);
-        if (simResult) break;
-        if (Date.now() - startTime >= timeoutMs) {
-          error('session.start', `All ${poolSize} simulator slots are locked. Waited ${opts.timeout}s. Consider increasing simulator.pool_size in .proofrun/config.toml.`);
-        }
-        await new Promise(r => setTimeout(r, pollInterval));
-      }
-
-      // Acquire port
-      const portResult = acquirePort(lockDir, portStart, portEnd);
-      if (!portResult) {
-        releaseLock(simResult.lock);
-        error('session.start', `All ports in range ${portStart}-${portEnd} are locked or in use. Consider expanding port_range in .proofrun/config.toml.`);
+      // Check if simulator is already locked by another session
+      const lock = acquireLock(lockDir, resourceName);
+      if (!lock) {
+        // Find which session holds it
+        const locks = listLocks(lockDir);
+        const held = locks.find(l => l.resource === resourceName);
+        const holder = held ? ` (held by session ${held.sessionId})` : '';
+        error('session.start', `Simulator ${opts.simulator} is already in use${holder}.`);
       }
 
       // Create session
@@ -75,62 +53,49 @@ export function registerSession(program) {
         change_name: opts.change,
         started_at: new Date().toISOString(),
         stopped_at: null,
-        simulator: {
-          slot: simResult.slot,
-          lock_file: `.proofrun/locks/sim-${simResult.slot}.lock`,
-        },
-        port: {
-          number: portResult.port,
-          lock_file: `.proofrun/locks/port-${portResult.port}.lock`,
-        },
+        simulator: opts.simulator,
       };
 
       saveSessionState(sessionDir, sessionState);
-      initEvidence(sessionDir, sessionId, opts.change, sessionState.simulator, portResult.port);
+      initEvidence(sessionDir, sessionId, opts.change, opts.simulator);
 
-      // Write session ID to lock held files for session-bound locking
-      const { writeFileSync } = await import('node:fs');
-      writeFileSync(simResult.lock.heldPath, sessionId);
-      writeFileSync(portResult.lock.heldPath, sessionId);
+      // Write session ID to lock held file (replaces PID placeholder)
+      writeFileSync(lock.heldPath, sessionId);
 
-      const responseData = {
+      success('session.start', {
         session_id: sessionId,
         change_name: opts.change,
-        port: portResult.port,
-        simulator_slot: simResult.slot,
+        simulator: opts.simulator,
         session_dir: `.proofrun/sessions/${sessionId}`,
-      };
-      if (recoveredSessions.length > 0) {
-        responseData.recovered_stale_sessions = recoveredSessions;
-      }
-      success('session.start', responseData);
+      }, (data) =>
+        `Session started: ${data.session_id}\n` +
+        `Change: ${data.change_name}\n` +
+        `Simulator: ${data.simulator}\n` +
+        `Session dir: ${data.session_dir}`
+      );
     });
 
   session
     .command('stop')
-    .description('Stop the active verification session — release all locks')
+    .description('Stop the active verification session — release simulator lock')
     .action(async () => {
       const rawConfig = requireConfig('session.stop');
       const config = withDefaults(rawConfig);
       const projectRoot = config._dir;
       const evidenceDir = resolve(projectRoot, config.session.evidence_dir);
 
-      const active = findActiveSession(evidenceDir, projectRoot);
-      if (!active || !active.sessionId) {
+      const active = findActiveSession(evidenceDir);
+      if (!active) {
         error('session.stop', 'No active session found.');
       }
 
       const { sessionDir, state } = active;
 
-      // Release locks
-      const lockDir = resolve(projectRoot, config.session.lock_dir);
-      if (state.simulator?.slot !== undefined) {
-        const simLock = { heldPath: resolve(lockDir, `sim-${state.simulator.slot}.lock.held`) };
-        releaseLock(simLock);
-      }
-      if (state.port?.number !== undefined) {
-        const portLock = { heldPath: resolve(lockDir, `port-${state.port.number}.lock.held`) };
-        releaseLock(portLock);
+      // Release simulator lock
+      const lockDir = resolve(projectRoot, LOCK_DIR);
+      if (state.simulator) {
+        const heldPath = resolve(lockDir, `sim-${state.simulator}.lock.held`);
+        releaseLock({ heldPath });
       }
 
       // Update session state
@@ -142,58 +107,63 @@ export function registerSession(program) {
       // Count evidence
       const evidence = loadEvidence(sessionDir);
       const entryCount = evidence?.entries?.length || 0;
-      const startedAt = new Date(state.started_at);
-      const duration = Math.round((new Date(stoppedAt) - startedAt) / 1000);
+      const duration = Math.round((new Date(stoppedAt) - new Date(state.started_at)) / 1000);
 
       success('session.stop', {
         session_id: active.sessionId,
-        released: {
-          simulator_slot: state.simulator?.slot,
-          port: state.port?.number,
-        },
+        released_simulator: state.simulator,
         evidence_entries: entryCount,
         duration_seconds: duration,
-      });
+      }, (data) =>
+        `Session stopped: ${data.session_id}\n` +
+        `Released simulator: ${data.released_simulator}\n` +
+        `Evidence entries: ${data.evidence_entries}\n` +
+        `Duration: ${data.duration_seconds}s`
+      );
     });
 
   session
     .command('status')
-    .description('Show active session info or pool availability')
+    .description('Show active session info or lock state')
     .action(async () => {
       const rawConfig = requireConfig('session.status');
       const config = withDefaults(rawConfig);
       const projectRoot = config._dir;
       const evidenceDir = resolve(projectRoot, config.session.evidence_dir);
-      const lockDir = resolve(projectRoot, config.session.lock_dir);
-      const poolSize = config.simulator.pool_size;
-      const { start: portStart, end: portEnd } = config.port_range;
+      const lockDir = resolve(projectRoot, LOCK_DIR);
 
-      const active = findActiveSession(evidenceDir, projectRoot);
+      const active = findActiveSession(evidenceDir);
+      const locks = listLocks(lockDir);
 
-      const lockedSlots = existsSync(lockDir) ? getLockedSlots(lockDir, poolSize) : [];
-      const lockedPorts = existsSync(lockDir) ? getLockedPorts(lockDir, portStart, portEnd) : [];
-      const totalPorts = portEnd - portStart + 1;
-
-      const pool = {
-        simulators: { available: poolSize - lockedSlots.length, total: poolSize, locked_slots: lockedSlots },
-        ports: { available: totalPorts - lockedPorts.length, total: totalPorts, locked_ports: lockedPorts },
-      };
-
-      if (active && active.sessionId) {
+      if (active) {
         const { state } = active;
         const evidence = loadEvidence(active.sessionDir);
+        const entryCount = evidence?.entries?.length || 0;
+
         success('session.status', {
           active: true,
           session_id: active.sessionId,
           change_name: state.change_name,
-          simulator_slot: state.simulator?.slot,
-          port: state.port?.number,
+          simulator: state.simulator,
           started_at: state.started_at,
-          evidence_entries: evidence?.entries?.length || 0,
-          pool,
-        });
+          evidence_entries: entryCount,
+          locked_resources: locks,
+        }, (data) =>
+          `Session: ${data.session_id} (active)\n` +
+          `Change: ${data.change_name}\n` +
+          `Simulator: ${data.simulator}\n` +
+          `Started: ${data.started_at}\n` +
+          `Evidence entries: ${data.evidence_entries}\n` +
+          `Locks: ${data.locked_resources.length} held`
+        );
       } else {
-        success('session.status', { active: false, pool });
+        success('session.status', {
+          active: false,
+          locked_resources: locks,
+        }, (data) =>
+          `Session: none active\n` +
+          `Locks: ${data.locked_resources.length} held`
+        );
       }
     });
 }

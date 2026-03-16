@@ -3,120 +3,132 @@ import assert from 'node:assert/strict';
 import { mkdirSync, rmSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { tmpdir } from 'node:os';
-import {
-  ensureSimLockFiles, ensurePortLockFiles,
-  acquireSimulatorSlot, acquirePort,
-  isPortInUse, releaseLock,
-} from './locking.js';
+import { acquireLock, releaseLock, listLocks } from './locking.js';
 
-describe('acquireSimulatorSlot', () => {
+describe('acquireLock', () => {
   let lockDir;
 
   beforeEach(() => {
     lockDir = mkdtempSync(join(tmpdir(), 'proofrun-lock-test-'));
-    ensureSimLockFiles(lockDir, 5);
   });
 
   afterEach(() => {
     rmSync(lockDir, { recursive: true, force: true });
   });
 
-  it('acquires slot 0 first', () => {
-    const result = acquireSimulatorSlot(lockDir, 5);
-    assert.notEqual(result, null);
-    assert.equal(result.slot, 0);
-    releaseLock(result.lock);
+  it('acquires a lock for a named resource', () => {
+    const lock = acquireLock(lockDir, 'sim-UDID-1234');
+    assert.notEqual(lock, null);
+    assert.ok(lock.heldPath.endsWith('.lock.held'));
+    releaseLock(lock);
   });
 
-  it('sequential acquires return different slots', () => {
-    const r1 = acquireSimulatorSlot(lockDir, 5);
-    const r2 = acquireSimulatorSlot(lockDir, 5);
-    assert.notEqual(r1, null);
-    assert.notEqual(r2, null);
-    assert.notEqual(r1.slot, r2.slot);
-    releaseLock(r1.lock);
-    releaseLock(r2.lock);
+  it('returns null when resource is already locked', () => {
+    const lock1 = acquireLock(lockDir, 'sim-UDID-1234');
+    assert.notEqual(lock1, null);
+
+    const lock2 = acquireLock(lockDir, 'sim-UDID-1234');
+    assert.equal(lock2, null);
+
+    releaseLock(lock1);
   });
 
-  it('returns null when all slots locked', () => {
-    const locks = [];
-    for (let i = 0; i < 3; i++) {
-      locks.push(acquireSimulatorSlot(lockDir, 3));
-    }
-    const result = acquireSimulatorSlot(lockDir, 3);
-    assert.equal(result, null);
-    locks.forEach(l => releaseLock(l?.lock));
-  });
-});
+  it('can acquire same resource after release', () => {
+    const lock1 = acquireLock(lockDir, 'sim-UDID-1234');
+    releaseLock(lock1);
 
-describe('acquirePort', () => {
-  let lockDir;
-
-  beforeEach(() => {
-    lockDir = mkdtempSync(join(tmpdir(), 'proofrun-port-test-'));
-    ensurePortLockFiles(lockDir, 19090, 19092);
+    const lock2 = acquireLock(lockDir, 'sim-UDID-1234');
+    assert.notEqual(lock2, null);
+    releaseLock(lock2);
   });
 
-  afterEach(() => {
-    rmSync(lockDir, { recursive: true, force: true });
+  it('different resources can be locked independently', () => {
+    const lockA = acquireLock(lockDir, 'sim-UDID-AAAA');
+    const lockB = acquireLock(lockDir, 'sim-UDID-BBBB');
+    assert.notEqual(lockA, null);
+    assert.notEqual(lockB, null);
+    releaseLock(lockA);
+    releaseLock(lockB);
   });
 
-  it('acquires first available port', () => {
-    const result = acquirePort(lockDir, 19090, 19092);
-    assert.notEqual(result, null);
-    assert.equal(result.port, 19090);
-    releaseLock(result.lock);
-  });
-
-  it('sequential acquires return different ports', () => {
-    const r1 = acquirePort(lockDir, 19090, 19092);
-    const r2 = acquirePort(lockDir, 19090, 19092);
-    assert.notEqual(r1, null);
-    assert.notEqual(r2, null);
-    assert.notEqual(r1.port, r2.port);
-    releaseLock(r1.lock);
-    releaseLock(r2.lock);
-  });
-});
-
-describe('isPortInUse', () => {
-  it('throws on non-integer port', () => {
-    assert.throws(() => isPortInUse('abc'), /Invalid port number/);
-  });
-
-  it('throws on out-of-range port', () => {
-    assert.throws(() => isPortInUse(99999), /Invalid port number/);
-  });
-
-  it('throws on negative port', () => {
-    assert.throws(() => isPortInUse(-1), /Invalid port number/);
-  });
-
-  it('returns boolean for valid port', () => {
-    const result = isPortInUse(19999);
-    assert.equal(typeof result, 'boolean');
-  });
-});
-
-describe('sessionBoundLocks', () => {
-  let lockDir;
-
-  beforeEach(() => {
-    lockDir = mkdtempSync(join(tmpdir(), 'proofrun-session-lock-test-'));
-    ensureSimLockFiles(lockDir, 1);
-  });
-
-  afterEach(() => {
-    rmSync(lockDir, { recursive: true, force: true });
-  });
-
-  it('lock held file can be overwritten with session ID', () => {
-    const result = acquireSimulatorSlot(lockDir, 1);
-    assert.notEqual(result, null);
-    // Overwrite with session ID (as session start does)
-    writeFileSync(result.lock.heldPath, 'session-abc123');
-    const content = readFileSync(result.lock.heldPath, 'utf8').trim();
+  it('held file can be overwritten with session ID', () => {
+    const lock = acquireLock(lockDir, 'sim-UDID-5678');
+    assert.notEqual(lock, null);
+    writeFileSync(lock.heldPath, 'session-abc123');
+    const content = readFileSync(lock.heldPath, 'utf8').trim();
     assert.equal(content, 'session-abc123');
-    releaseLock(result.lock);
+    releaseLock(lock);
+  });
+});
+
+describe('releaseLock', () => {
+  let lockDir;
+
+  beforeEach(() => {
+    lockDir = mkdtempSync(join(tmpdir(), 'proofrun-lock-test-'));
+  });
+
+  afterEach(() => {
+    rmSync(lockDir, { recursive: true, force: true });
+  });
+
+  it('is a no-op on null', () => {
+    assert.doesNotThrow(() => releaseLock(null));
+  });
+
+  it('releases the held file', () => {
+    const lock = acquireLock(lockDir, 'sim-UDID-9999');
+    assert.notEqual(lock, null);
+    releaseLock(lock);
+
+    // Should be lockable again
+    const lock2 = acquireLock(lockDir, 'sim-UDID-9999');
+    assert.notEqual(lock2, null);
+    releaseLock(lock2);
+  });
+});
+
+describe('listLocks', () => {
+  let lockDir;
+
+  beforeEach(() => {
+    lockDir = mkdtempSync(join(tmpdir(), 'proofrun-list-lock-test-'));
+  });
+
+  afterEach(() => {
+    rmSync(lockDir, { recursive: true, force: true });
+  });
+
+  it('returns empty array when no locks exist', () => {
+    assert.deepEqual(listLocks(lockDir), []);
+  });
+
+  it('returns empty array for non-existent directory', () => {
+    assert.deepEqual(listLocks(resolve(lockDir, 'nonexistent')), []);
+  });
+
+  it('lists locked resources with session IDs', () => {
+    const lock1 = acquireLock(lockDir, 'sim-UDID-AAAA');
+    const lock2 = acquireLock(lockDir, 'sim-UDID-BBBB');
+    writeFileSync(lock1.heldPath, 'session-111');
+    writeFileSync(lock2.heldPath, 'session-222');
+
+    const locks = listLocks(lockDir);
+    assert.equal(locks.length, 2);
+
+    const resourceNames = locks.map(l => l.resource).sort();
+    assert.deepEqual(resourceNames, ['sim-UDID-AAAA', 'sim-UDID-BBBB']);
+
+    releaseLock(lock1);
+    releaseLock(lock2);
+  });
+
+  it('does not include released locks', () => {
+    const lock = acquireLock(lockDir, 'sim-UDID-TTTT');
+    writeFileSync(lock.heldPath, 'session-xyz');
+    releaseLock(lock);
+
+    const locks = listLocks(lockDir);
+    assert.equal(locks.length, 0);
   });
 });
