@@ -139,7 +139,7 @@
 </head>
 <body>
 <script>
-const REPORT_DATA = /*__REPORT_DATA__*/{};
+const REPORT_DATA = /*__REPORT_DATA__*/null;
 </script>
 
 <h1>Proofrun Verification Report</h1>
@@ -164,11 +164,11 @@ const feedbackState = loadFeedbackState();
 function render() {
   const d = REPORT_DATA;
   document.getElementById('meta').innerHTML =
-    `Change: <strong>${esc(d.change_name)}</strong> &middot; ${d.started_at?.slice(0,10) || ''} &middot; ${esc(d.simulator?.device_name || '')}`;
+    `Change: <strong>${esc(d.change_name)}</strong> &middot; ${d.started_at?.slice(0,10) || ''} &middot; ${esc(typeof d.simulator === 'string' ? d.simulator : (d.simulator?.device_name || ''))}`;
 
   const s = d.summary;
   document.getElementById('summary').innerHTML = [
-    stat(s.total_acs, 'Total ACs', 'total'),
+    stat(s.total_criteria, 'Criteria', 'total'),
     stat(s.pass, 'Passed', 'pass'),
     stat(s.fail, 'Failed', 'fail'),
     stat(s.human_required, 'Human', 'human'),
@@ -178,7 +178,7 @@ function render() {
   ].join('');
 
   const acList = document.getElementById('ac-list');
-  acList.innerHTML = d.acs.map(ac => renderAC(ac)).join('');
+  acList.innerHTML = d.criteria.map(c => renderCriterion(c)).join('');
 
   if (d.general_entries?.length > 0) {
     document.getElementById('general-notes').innerHTML =
@@ -195,35 +195,35 @@ function stat(val, label, cls) {
   return `<div class="stat stat-${cls}"><span class="stat-value">${val}</span><span class="stat-label">${label}</span></div>`;
 }
 
-function renderAC(ac) {
-  const fb = feedbackState[ac.ac] || {};
-  const lastJ = ac.judgments[ac.judgments.length - 1];
+function renderCriterion(c) {
+  const fb = feedbackState[c.criterion] || {};
+  const lastJ = c.judgments[c.judgments.length - 1];
   const reasoning = lastJ?.reasoning || '';
-  const allEntries = [...ac.steps, ...ac.screenshots, ...ac.judgments, ...ac.fixes, ...(ac.notes || [])]
+  const allEntries = [...c.steps, ...c.screenshots, ...c.judgments, ...c.fixes, ...(c.notes || [])]
     .sort((a, b) => (a.id || 0) - (b.id || 0));
 
   return `
-  <div class="ac-section" data-ac="${ac.ac}">
+  <div class="ac-section" data-criterion="${esc(c.criterion)}">
     <div class="ac-header" onclick="toggleAC(this)">
-      <span class="badge badge-${ac.latest_status}">${statusLabel(ac.latest_status)}</span>
-      <span class="ac-title">AC ${ac.ac}</span>
-      <span style="color:var(--text-muted);font-size:13px">${ac.screenshots.length} img, ${ac.steps.length} steps</span>
+      <span class="badge badge-${c.latest_status}">${statusLabel(c.latest_status)}</span>
+      <span class="ac-title">${esc(c.criterion)}</span>
+      <span style="color:var(--text-muted);font-size:13px">${c.screenshots.length} img, ${c.steps.length} steps</span>
     </div>
     <div class="ac-body">
       ${reasoning ? `<div class="reasoning">${esc(reasoning)}</div>` : ''}
-      ${ac.screenshots.length > 0 ? `<div class="screenshots">${ac.screenshots.map(s =>
-        `<div><img class="screenshot-thumb" src="${s.data_uri || ''}" alt="AC ${ac.ac} screenshot" onclick="openLightbox(this.src)">` +
+      ${c.screenshots.length > 0 ? `<div class="screenshots">${c.screenshots.map(s =>
+        `<div><img class="screenshot-thumb" src="${s.data_uri || ''}" alt="${esc(c.criterion)} screenshot" onclick="openLightbox(this.src)">` +
         (s.note ? `<div class="screenshot-note">${esc(s.note)}</div>` : '') + '</div>'
       ).join('')}</div>` : ''}
       <div class="timeline"><h3>Timeline</h3>${allEntries.map(e => renderTimelineEntry(e)).join('')}</div>
       <div class="feedback-controls">
         <button class="btn btn-accept ${fb.status === 'accepted' ? 'active' : ''}"
-          onclick="setFeedback(${ac.ac}, 'accepted', this)">Accept</button>
+          onclick="setFeedback('${esc(c.criterion)}', 'accepted', this)">Accept</button>
         <button class="btn btn-reject ${fb.status === 'rejected' ? 'active' : ''}"
-          onclick="setFeedback(${ac.ac}, 'rejected', this)">Reject</button>
+          onclick="setFeedback('${esc(c.criterion)}', 'rejected', this)">Reject</button>
       </div>
       <textarea class="comment-area" placeholder="Comments..."
-        onchange="setComment(${ac.ac}, this.value)">${esc(fb.comment || '')}</textarea>
+        onchange="setComment('${esc(c.criterion)}', this.value)">${esc(fb.comment || '')}</textarea>
     </div>
   </div>`;
 }
@@ -293,16 +293,16 @@ function exportFeedback() {
     session_id: d.session_id,
     change_name: d.change_name,
     reviewed_at: new Date().toISOString(),
-    acs: d.acs.map(ac => ({
-      ac: ac.ac,
-      agent_status: ac.latest_status,
-      review_status: feedbackState[ac.ac]?.status || 'pending',
-      comment: feedbackState[ac.ac]?.comment || null,
+    criteria: d.criteria.map(c => ({
+      criterion: c.criterion,
+      agent_status: c.latest_status,
+      review_status: feedbackState[c.criterion]?.status || 'pending',
+      comment: feedbackState[c.criterion]?.comment || null,
     })),
     summary: {
-      accepted: d.acs.filter(ac => feedbackState[ac.ac]?.status === 'accepted').length,
-      rejected: d.acs.filter(ac => feedbackState[ac.ac]?.status === 'rejected').length,
-      pending: d.acs.filter(ac => !feedbackState[ac.ac]?.status).length,
+      accepted: d.criteria.filter(c => feedbackState[c.criterion]?.status === 'accepted').length,
+      rejected: d.criteria.filter(c => feedbackState[c.criterion]?.status === 'rejected').length,
+      pending: d.criteria.filter(c => !feedbackState[c.criterion]?.status).length,
     },
   };
   const blob = new Blob([JSON.stringify(feedback, null, 2)], { type: 'application/json' });
