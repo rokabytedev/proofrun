@@ -72,6 +72,11 @@ export function loadEvidence(sessionDir) {
   }
 }
 
+export function hasPrerequisites(evidence) {
+  if (!evidence || !evidence.entries) return false;
+  return evidence.entries.some(e => e.type === 'prerequisite');
+}
+
 export function appendEvidence(sessionDir, entry) {
   const evidence = loadEvidence(sessionDir);
   if (!evidence) throw new Error('No evidence.json found in session directory');

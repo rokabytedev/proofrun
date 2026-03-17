@@ -20,37 +20,34 @@ Verify: `iosef --help`
 
 Use context7 or the iosef skill instructions for detailed usage.
 
-<!-- Agent: Fill in the following once you discover them:
-     - Available simulators (run device listing command)
-     - Device identifiers (UDIDs)
-     - Which device(s) to use for verification
-     - How to boot a simulator
-     - How to connect iosef to the simulator
-     - Any project-specific simulator notes -->
+### Stable (persists across sessions)
+<!-- Agent: Device identifiers, OS versions, device names.
+     These don't change between verification runs. -->
+
+### Observed (re-verify each session — may be stale)
+<!-- Agent: DO NOT store transient state here (current screen, app state).
+     Instead, verify these each session and record as prerequisites. -->
 
 ## Android Emulator
 
 Recommended interaction tool: **TBD** (no agent-first tool tested yet)
 
-<!-- Agent: Use context7 or web search to find a suitable agent-first
-     interaction tool for Android emulators. If none exists, fall back
-     to standard ADB commands.
+### Stable (persists across sessions)
+<!-- Agent: Device identifiers, OS versions, AVD names.
+     These don't change between verification runs. -->
 
-     Fill in the following once you discover them:
-     - Available emulators/AVDs
-     - Device identifiers
-     - How to start an emulator
-     - How to install and launch the app
-     - Interaction tool installation and usage -->
+### Observed (re-verify each session — may be stale)
+<!-- Agent: DO NOT store transient state here (current screen, app state).
+     Instead, verify these each session and record as prerequisites. -->
 
 ## Mobile Web
 
 Recommended interaction tool: **TBD** (browser automation)
 
-<!-- Agent: Use context7 or web search to find a suitable agent-first
-     browser interaction tool. Consider Playwright, Puppeteer, or similar.
+### Stable (persists across sessions)
+<!-- Agent: Browser type, viewport dimensions, connection method.
+     These don't change between verification runs. -->
 
-     Fill in the following once you discover them:
-     - How to launch a browser in the correct viewport
-     - How to connect the interaction tool
-     - Mobile viewport dimensions to use -->
+### Observed (re-verify each session — may be stale)
+<!-- Agent: DO NOT store transient state here (current page, app state).
+     Instead, verify these each session and record as prerequisites. -->

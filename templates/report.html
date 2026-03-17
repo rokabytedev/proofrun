@@ -135,6 +135,21 @@
   }
   .general-notes h3 { margin-bottom: 8px; }
   .command-text { font-family: monospace; font-size: 12px; color: var(--text-muted); }
+  .prereq-section {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    padding: 16px; margin-bottom: 24px;
+  }
+  .prereq-section h2 { margin-bottom: 12px; }
+  .prereq-item {
+    display: flex; gap: 12px; align-items: flex-start;
+    padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 14px;
+  }
+  .prereq-item:last-child { border-bottom: none; }
+  .prereq-desc { flex: 1; }
+  .prereq-check { font-family: monospace; font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+  .prereq-output { font-family: monospace; font-size: 11px; color: var(--text-muted); margin-top: 2px; white-space: pre-wrap; max-height: 80px; overflow: auto; }
+  .prereq-time { color: var(--text-muted); font-size: 12px; white-space: nowrap; }
+  .prereq-warning { color: var(--yellow); font-size: 14px; padding: 8px 0; }
 </style>
 </head>
 <body>
@@ -151,6 +166,7 @@ const REPORT_DATA = /*__REPORT_DATA__*/null;
   <button class="btn-export" onclick="exportFeedback()">Export Feedback</button>
 </div>
 
+<div id="prerequisites"></div>
 <div id="ac-list"></div>
 <div id="general-notes"></div>
 
@@ -176,6 +192,28 @@ function render() {
     stat(s.total_screenshots, 'Screenshots', 'total'),
     stat(s.total_fixes, 'Fixes', 'total'),
   ].join('');
+
+  // Render prerequisites section
+  const prereqEl = document.getElementById('prerequisites');
+  if (d.prerequisites && d.prerequisites.length > 0) {
+    prereqEl.innerHTML = `<div class="prereq-section"><h2>Prerequisites</h2>` +
+      d.prerequisites.map(p => {
+        let html = `<div class="prereq-item">`;
+        html += `<div class="prereq-desc">${esc(p.description)}`;
+        if (p.check_command) {
+          html += `<div class="prereq-check">$ ${esc(p.check_command)}</div>`;
+          if (p.check_output) html += `<div class="prereq-output">${esc(p.check_output)}</div>`;
+        }
+        html += `</div>`;
+        if (p.check_passed === true) html += `<span class="badge badge-pass">Passed</span>`;
+        else if (p.check_passed === false) html += `<span class="badge badge-fail">Failed</span>`;
+        html += `<span class="prereq-time">${fmtTime(p.timestamp)}</span>`;
+        html += `</div>`;
+        return html;
+      }).join('') + `</div>`;
+  } else {
+    prereqEl.innerHTML = `<div class="prereq-section"><h2>Prerequisites</h2><div class="prereq-warning">No environment prerequisites were recorded for this session.</div></div>`;
+  }
 
   const acList = document.getElementById('ac-list');
   acList.innerHTML = d.criteria.map(c => renderCriterion(c)).join('');

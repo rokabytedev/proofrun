@@ -26,6 +26,13 @@ description: How to build, install, and run the app for verification.
 ### Web
 <!-- Agent: If this project has a mobile web target, how do you build and serve it? -->
 
+## Build Verification
+<!-- Agent: How do you confirm the running app includes your latest changes?
+     For JS-only changes (hot reload): verify Metro is running and connected
+     For native changes: you MUST rebuild and reinstall
+     Record the build timestamp or version command here.
+     What command shows the current build version/timestamp? -->
+
 ## Dev Server
 <!-- Agent: Does this project use a dev server (Metro, Vite, webpack, etc.)?
      Start command:

@@ -4,6 +4,10 @@ description: How to discover and understand what to verify.
   Read when starting verification for a specific change or free-form query.
 ---
 
+**IMPORTANT**: Do NOT put change-specific criteria or verification details in this file.
+Knowledge files persist across verifications. Change-specific context belongs in the
+session evidence, not here. This file is for reusable project-level discovery patterns.
+
 ## For OpenSpec Projects
 
 List available changes:

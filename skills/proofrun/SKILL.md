@@ -23,6 +23,7 @@ Use proofrun when:
 3. Fix any issues reported — the output tells you how.
 4. **Read relevant knowledge**: `npx proofrun knowledge <topic>`
    Fill in any `<!-- Agent: ... -->` placeholder sections before proceeding.
+   **Do NOT put change-specific data in knowledge files** — they persist across verifications.
 
 ## Workflow
 
@@ -59,12 +60,13 @@ Criteria can be added during exploration — you don't need to define them all u
 
 ### 3. Set Up Environment
 
-Follow `knowledge/environment` and `knowledge/simulators` for platform-specific instructions:
+Follow `knowledge/environment` and `knowledge/simulators` for platform-specific instructions. You **MUST**:
 
 1. **Discover or create a device** — get its identifier
 2. **Boot the device** if not running
-3. **Build and install the app** on the device
-4. **Start the dev server** if the project needs one
+3. **Build and install the app** with your latest changes (not a cached build)
+4. **Verify the dev server** is running and connected (if applicable)
+5. **Confirm the device** is in a clean state
 
 Update knowledge files with everything you discover.
 
@@ -90,7 +92,19 @@ Use a descriptive slug for `--change`:
 
 If another session is active, stop it first with `npx proofrun session stop`.
 
-### 6. Verify Each Criterion (Explore-Then-Document)
+### 6. Record Prerequisites
+
+After starting a session, record environment prerequisites before any verification:
+
+```bash
+npx proofrun prerequisite "App rebuilt at <timestamp>" --check "<build verify command>"
+npx proofrun prerequisite "Dev server running" --check "curl -s http://localhost:8081/status"
+npx proofrun prerequisite "Device: iPhone 17 Pro Max, iOS 26.2"
+```
+
+These are mandatory. Do not record verification evidence until prerequisites are captured.
+
+### 7. Verify Each Criterion (Explore-Then-Document)
 
 For each agent-verifiable criterion:
 
@@ -120,7 +134,7 @@ npx proofrun judge --criterion settings-translated --pass "All 12 labels use Chi
 npx proofrun judge --criterion audio-playback-quality --human "Cannot verify audio output quality — requires human listener"
 ```
 
-### 7. Check Progress
+### 8. Check Progress
 
 ```bash
 npx proofrun evidence
@@ -128,7 +142,7 @@ npx proofrun evidence
 
 Review the criteria list. Confirm all have judgments before generating the report.
 
-### 8. Generate Report
+### 9. Generate Report
 
 ```bash
 npx proofrun report --open
@@ -136,7 +150,7 @@ npx proofrun report --open
 
 Tell the user the report is ready and provide the file path.
 
-### 9. Clean Up
+### 10. Clean Up
 
 ```bash
 npx proofrun session stop
@@ -144,13 +158,23 @@ npx proofrun session stop
 
 Stop the dev server if appropriate. Always stop the session — this releases the device lock.
 
-### 10. Handle Human Feedback
+### 11. Handle Human Feedback
 
 If the user provides feedback (via the report's Export Feedback button → JSON file):
 1. Read the exported feedback JSON
 2. For each rejected criterion: understand the comment, fix the issue
 3. Start a new session and re-verify rejected criteria
 4. Generate a new report
+
+### 12. Follow-Up Runs
+
+When addressing feedback from a rejected criterion:
+1. Fix the code
+2. Start a new session with the SAME `--change` name and a `--reason`:
+   ```
+   npx proofrun session start --change <same-name> --device <id> --reason "fix <what-changed>"
+   ```
+3. Re-verify ALL criteria by default. Only skip re-verification if your changes absolutely cannot affect a criterion.
 
 ## Principles
 
@@ -161,6 +185,7 @@ If the user provides feedback (via the report's Export Feedback button → JSON 
 - **One criterion at a time**: Verify, record evidence, judge. Then move to the next.
 - **Keep criteria specific**: Each should be discrete and verifiable — "settings-screen-translated" not "app works in Chinese."
 - **Human-in-the-loop**: If stuck after 2 attempts, ask the user. Don't spiral.
+- **Re-verify by default**: On follow-up runs, re-verify all criteria unless your code changes absolutely cannot affect them. When in doubt, re-verify.
 - **Run `npx proofrun --help`** for complete command reference.
 
 ## Knowledge Management
@@ -172,3 +197,4 @@ Knowledge files at `.proofrun/knowledge/` are **working notes, not specification
 - Knowledge files are advisory — the app is the source of truth
 - **Update immediately** when you discover something, not at the end of the session
 - Create new topic files for distinct knowledge areas
+- **Do NOT put change-specific data in knowledge files** — they persist across verifications. Change-specific criteria and verification details belong in session evidence, not here.

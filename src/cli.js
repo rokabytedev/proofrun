@@ -5,6 +5,7 @@ import { registerSession } from './commands/session.js';
 import { registerEvidence } from './commands/evidence.js';
 import { registerInfo } from './commands/info.js';
 import { registerKnowledge } from './commands/knowledge.js';
+import { registerPrerequisite } from './commands/prerequisite.js';
 import { registerReport } from './commands/report.js';
 import { setJsonMode } from './output.js';
 
@@ -31,6 +32,8 @@ KNOWLEDGE COMMANDS
   proofrun knowledge <topic>             Read a specific knowledge file
 
 EVIDENCE COMMANDS
+  proofrun prerequisite <description>    Record an environment prerequisite
+    [--check <command>]                    Command to verify the prerequisite
   proofrun step <description>            Record a verification step
     [--criterion <name>]                   Associate with named criterion
     [--command <cmd>]                      Command used for this step
@@ -124,6 +127,7 @@ export function createCli() {
   registerInit(program);
   registerDoctor(program);
   registerSession(program);
+  registerPrerequisite(program);
   registerEvidence(program);
   registerInfo(program);
   registerKnowledge(program);

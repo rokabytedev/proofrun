@@ -118,11 +118,16 @@ export function registerReport(program) {
 export function buildReportData(evidence, state, sessionDir, config) {
   const entries = evidence.entries;
 
-  // Group entries by criterion name
+  // Separate prerequisite entries
+  const prerequisites = entries.filter(e => e.type === 'prerequisite');
+
+  // Group remaining entries by criterion name
   const criterionMap = new Map();
   const generalEntries = [];
 
   for (const entry of entries) {
+    if (entry.type === 'prerequisite') continue; // Already separated
+
     if (entry.criterion != null) {
       if (!criterionMap.has(entry.criterion)) {
         criterionMap.set(entry.criterion, {
@@ -168,6 +173,7 @@ export function buildReportData(evidence, state, sessionDir, config) {
     started_at: evidence.started_at,
     device: evidence.device,
     summary,
+    prerequisites,
     criteria,
     general_entries: generalEntries,
     generated_at: new Date().toISOString(),

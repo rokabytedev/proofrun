@@ -2,7 +2,7 @@ import { copyFileSync, existsSync } from 'node:fs';
 import { resolve, extname } from 'node:path';
 import { success, error } from '../output.js';
 import { requireConfig, withDefaults } from '../config.js';
-import { findActiveSession, appendEvidence, loadEvidence } from '../session.js';
+import { findActiveSession, appendEvidence, loadEvidence, hasPrerequisites } from '../session.js';
 
 function requireActiveSession(config, command) {
   const evidenceDir = resolve(config._dir, config.session.evidence_dir);
@@ -10,6 +10,12 @@ function requireActiveSession(config, command) {
   if (!active) {
     error(command, 'No active session. Run `proofrun session start --change <name> --device <identifier>` first.');
   }
+
+  const evidence = loadEvidence(active.sessionDir);
+  if (!hasPrerequisites(evidence)) {
+    console.error('Warning: No prerequisites recorded. Run `proofrun prerequisite` to record environment state first.');
+  }
+
   return active;
 }
 
