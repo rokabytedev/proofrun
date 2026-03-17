@@ -7,6 +7,8 @@ import { registerInfo } from './commands/info.js';
 import { registerKnowledge } from './commands/knowledge.js';
 import { registerPrerequisite } from './commands/prerequisite.js';
 import { registerReport } from './commands/report.js';
+import { registerCarry } from './commands/carry.js';
+import { registerServe } from './commands/serve.js';
 import { setJsonMode } from './output.js';
 
 const HELP_TEXT = `
@@ -24,6 +26,7 @@ SESSION COMMANDS
   proofrun session start                 Start a verification session
     --change <name>                        Change name or verification label (required)
     --device <identifier>                  Device identifier to lock (required)
+    [--reason <text>]                      Reason for this run (follow-up runs)
   proofrun session stop                  Release device lock, finalize session
   proofrun session status                Show active session or lock state
 
@@ -49,6 +52,9 @@ EVIDENCE COMMANDS
   proofrun fix                           Record a code fix
     --criterion <name>                     Criterion name (required)
     --description <text>                   Description of the fix (required)
+  proofrun carry                         Carry forward a criterion from a prior run
+    --criterion <name>                     Criterion name to carry (required)
+    --reason <text>                        Reason for carrying (required)
   proofrun evidence                      Show evidence summary for active session
 
 REPORT COMMANDS
@@ -56,6 +62,12 @@ REPORT COMMANDS
     [--output <path>]                      Custom output path
     [--open]                               Open in browser after generation
     [--session <id>]                       Use specific session (default: active)
+    [--change <name>]                      Multi-run report for a change name
+  proofrun serve                         Start feedback server for a report
+    --change <name>                        Change name (required)
+    [--port <port>]                        Port number (default: random)
+    [--timeout <minutes>]                  Server timeout (default: 30)
+    [--stop]                               Stop a running serve process
 
 GLOBAL FLAGS
   --json                                 Output in JSON format (default: plain text)
@@ -132,6 +144,8 @@ export function createCli() {
   registerInfo(program);
   registerKnowledge(program);
   registerReport(program);
+  registerCarry(program);
+  registerServe(program);
 
   return program;
 }

@@ -77,6 +77,24 @@ export function hasPrerequisites(evidence) {
   return evidence.entries.some(e => e.type === 'prerequisite');
 }
 
+export function findSessionsByChangeName(evidenceDir, changeName) {
+  if (!existsSync(evidenceDir)) return [];
+  const dirs = readdirSync(evidenceDir, { withFileTypes: true })
+    .filter(d => d.isDirectory())
+    .map(d => d.name)
+    .sort(); // chronological (session IDs are date-prefixed)
+
+  const results = [];
+  for (const dir of dirs) {
+    const sessionDir = resolve(evidenceDir, dir);
+    const state = loadSessionState(sessionDir);
+    if (state && state.change_name === changeName) {
+      results.push({ sessionId: dir, sessionDir, state });
+    }
+  }
+  return results;
+}
+
 export function appendEvidence(sessionDir, entry) {
   const evidence = loadEvidence(sessionDir);
   if (!evidence) throw new Error('No evidence.json found in session directory');

@@ -145,12 +145,34 @@ Review the criteria list. Confirm all have judgments before generating the repor
 ### 9. Generate Report
 
 ```bash
-npx proofrun report --open
+npx proofrun report --change <name>
 ```
+
+Use `--change` to generate a multi-run report that aggregates all sessions for the change. This shows tabs for each run, with carried/re-verified/new badges on criteria.
+
+For a single-session report (legacy): `npx proofrun report --open`
 
 Tell the user the report is ready and provide the file path.
 
-### 10. Clean Up
+### 10. Serve Report for Live Feedback
+
+After generating the report, start the feedback server so the reviewer can submit feedback directly from the browser:
+
+```bash
+npx proofrun serve --change <name> &
+```
+
+This starts an HTTP server that:
+- Serves the report at `http://localhost:<port>`
+- Accepts feedback submissions via "Submit Feedback" or "LGTM" buttons in the report
+- Writes feedback to the latest session's `feedback.json`
+- Exits automatically after feedback is received
+
+Tell the user the URL. The serve process blocks until feedback is received or times out (default 30 minutes).
+
+To stop a running server: `npx proofrun serve --stop`
+
+### 11. Clean Up
 
 ```bash
 npx proofrun session stop
@@ -158,15 +180,15 @@ npx proofrun session stop
 
 Stop the dev server if appropriate. Always stop the session — this releases the device lock.
 
-### 11. Handle Human Feedback
+### 12. Handle Human Feedback
 
-If the user provides feedback (via the report's Export Feedback button → JSON file):
-1. Read the exported feedback JSON
+When feedback is received (via serve or exported JSON file):
+1. Read the feedback (serve writes it to the session's `feedback.json`)
 2. For each rejected criterion: understand the comment, fix the issue
 3. Start a new session and re-verify rejected criteria
 4. Generate a new report
 
-### 12. Follow-Up Runs
+### 13. Follow-Up Runs
 
 When addressing feedback from a rejected criterion:
 1. Fix the code
@@ -174,7 +196,20 @@ When addressing feedback from a rejected criterion:
    ```
    npx proofrun session start --change <same-name> --device <id> --reason "fix <what-changed>"
    ```
-3. Re-verify ALL criteria by default. Only skip re-verification if your changes absolutely cannot affect a criterion.
+3. **Carry forward approved criteria** that your changes cannot affect:
+   ```
+   npx proofrun carry --criterion <name> --reason "No code changes affect this"
+   ```
+   This creates an audit trail linking to the prior run's judgment. The carried criterion inherits its prior approval in the multi-run report.
+
+4. **Re-verify criteria** that your changes could affect — record fresh evidence and judgments.
+
+5. Use `npx proofrun report --change <name>` to generate the multi-run report. The report shows:
+   - **Carried** criteria with gray badge and carry reason (auto-approved if prior run was approved)
+   - **Re-verified** criteria with blue badge (needs new review)
+   - **New** criteria with purple badge (needs review)
+
+**Decision: carry vs re-verify**: Carry only when your code changes absolutely cannot affect the criterion. When in doubt, re-verify. Carrying is faster but re-verifying is safer.
 
 ## Principles
 

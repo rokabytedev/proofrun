@@ -18,6 +18,7 @@ export function registerSession(program) {
     .description('Start a new verification session — lock device by identifier')
     .requiredOption('--change <name>', 'Change name or verification label')
     .requiredOption('--device <identifier>', 'Device identifier (UDID, AVD name, etc.) to lock for this session')
+    .option('--reason <text>', 'Reason for this run (e.g., "fix card-tap animation")')
     .action(async (opts) => {
       const rawConfig = requireConfig('session.start');
       const config = withDefaults(rawConfig);
@@ -54,6 +55,7 @@ export function registerSession(program) {
         started_at: new Date().toISOString(),
         stopped_at: null,
         device: opts.device,
+        reason: opts.reason || null,
       };
 
       saveSessionState(sessionDir, sessionState);
@@ -66,11 +68,13 @@ export function registerSession(program) {
         session_id: sessionId,
         change_name: opts.change,
         device: opts.device,
+        reason: opts.reason || null,
         session_dir: `.proofrun/sessions/${sessionId}`,
       }, (data) =>
         `Session started: ${data.session_id}\n` +
         `Change: ${data.change_name}\n` +
         `Device: ${data.device}\n` +
+        (data.reason ? `Reason: ${data.reason}\n` : '') +
         `Session dir: ${data.session_dir}`
       );
     });

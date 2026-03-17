@@ -1,6 +1,9 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildReportData } from './report.js';
+import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { tmpdir } from 'node:os';
+import { buildReportData, buildMultiRunReportData } from './report.js';
 
 describe('buildReportData', () => {
   const baseEvidence = {
@@ -97,5 +100,197 @@ describe('buildReportData', () => {
     assert.equal(data.general_entries.length, 1);
     assert.equal(data.general_entries[0].type, 'note');
     assert.equal(data.criteria.length, 1);
+  });
+
+  it('includes carry entries in criteria', () => {
+    const evidence = {
+      ...baseEvidence,
+      entries: [
+        { id: 1, type: 'carry', criterion: 'chevron-visible', reason: 'No code changes', carried_from_session: 'sess-1', carried_from_run: 1, timestamp: '2026-03-15T10:01:00Z' },
+      ],
+    };
+    const data = buildReportData(evidence, {}, '/tmp', baseConfig);
+    assert.equal(data.criteria.length, 1);
+    assert.equal(data.criteria[0].carries.length, 1);
+    assert.equal(data.criteria[0].carries[0].reason, 'No code changes');
+  });
+});
+
+describe('buildMultiRunReportData', () => {
+  const baseConfig = {
+    reports: { embed_screenshots: false },
+  };
+
+  function createTempSessions() {
+    const tmpBase = resolve(tmpdir(), `proofrun-test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+    const evidenceDir = resolve(tmpBase, 'sessions');
+    mkdirSync(evidenceDir, { recursive: true });
+
+    // Session 1: stopped, Run #1
+    const session1Id = '20260315100000-aaaaaa';
+    const session1Dir = resolve(evidenceDir, session1Id);
+    mkdirSync(resolve(session1Dir, 'screenshots'), { recursive: true });
+    writeFileSync(resolve(session1Dir, 'state.json'), JSON.stringify({
+      session_id: session1Id,
+      status: 'stopped',
+      change_name: 'test-change',
+      started_at: '2026-03-15T10:00:00Z',
+      stopped_at: '2026-03-15T11:00:00Z',
+      device: 'DEVICE-1',
+      reason: null,
+    }));
+    writeFileSync(resolve(session1Dir, 'evidence.json'), JSON.stringify({
+      session_id: session1Id,
+      change_name: 'test-change',
+      started_at: '2026-03-15T10:00:00Z',
+      device: 'DEVICE-1',
+      entries: [
+        { id: 1, type: 'step', criterion: 'chevron-visible', description: 'Check chevron', timestamp: '2026-03-15T10:10:00Z' },
+        { id: 2, type: 'judgment', criterion: 'chevron-visible', status: 'pass', reasoning: 'Chevron shows', judgment_sequence: 1, timestamp: '2026-03-15T10:11:00Z' },
+        { id: 3, type: 'step', criterion: 'card-tap', description: 'Tap card', timestamp: '2026-03-15T10:12:00Z' },
+        { id: 4, type: 'judgment', criterion: 'card-tap', status: 'fail', reasoning: 'Animation janky', judgment_sequence: 1, timestamp: '2026-03-15T10:13:00Z' },
+      ],
+    }));
+
+    // Feedback for session 1 (chevron approved, card-tap rejected)
+    writeFileSync(resolve(session1Dir, 'feedback.json'), JSON.stringify({
+      session_id: session1Id,
+      run_number: 1,
+      change_name: 'test-change',
+      reviewed_at: '2026-03-15T12:00:00Z',
+      top_level_comment: null,
+      lgtm: false,
+      criteria: [
+        { criterion: 'chevron-visible', source: null, review_status: 'accepted', comment: null },
+        { criterion: 'card-tap', source: null, review_status: 'rejected', comment: 'Fix animation' },
+      ],
+      summary: { accepted: 1, rejected: 1, pending: 0 },
+    }));
+
+    // Session 2: stopped, Run #2
+    const session2Id = '20260315130000-bbbbbb';
+    const session2Dir = resolve(evidenceDir, session2Id);
+    mkdirSync(resolve(session2Dir, 'screenshots'), { recursive: true });
+    writeFileSync(resolve(session2Dir, 'state.json'), JSON.stringify({
+      session_id: session2Id,
+      status: 'stopped',
+      change_name: 'test-change',
+      started_at: '2026-03-15T13:00:00Z',
+      stopped_at: '2026-03-15T14:00:00Z',
+      device: 'DEVICE-1',
+      reason: 'fix card-tap animation',
+    }));
+    writeFileSync(resolve(session2Dir, 'evidence.json'), JSON.stringify({
+      session_id: session2Id,
+      change_name: 'test-change',
+      started_at: '2026-03-15T13:00:00Z',
+      device: 'DEVICE-1',
+      entries: [
+        { id: 1, type: 'carry', criterion: 'chevron-visible', reason: 'No code changes affect chevron', carried_from_session: session1Id, carried_from_run: 1, timestamp: '2026-03-15T13:05:00Z' },
+        { id: 2, type: 'step', criterion: 'card-tap', description: 'Re-test tap', timestamp: '2026-03-15T13:10:00Z' },
+        { id: 3, type: 'judgment', criterion: 'card-tap', status: 'pass', reasoning: 'Animation smooth', judgment_sequence: 1, timestamp: '2026-03-15T13:11:00Z' },
+        { id: 4, type: 'step', criterion: 'new-feature', description: 'Check new thing', timestamp: '2026-03-15T13:12:00Z' },
+        { id: 5, type: 'judgment', criterion: 'new-feature', status: 'pass', reasoning: 'Works', judgment_sequence: 1, timestamp: '2026-03-15T13:13:00Z' },
+      ],
+    }));
+
+    return { tmpBase, evidenceDir, session1Id, session2Id };
+  }
+
+  it('builds runs array with correct run numbers', () => {
+    const { tmpBase, evidenceDir } = createTempSessions();
+    try {
+      const data = buildMultiRunReportData(evidenceDir, 'test-change', baseConfig);
+      assert.equal(data.runs.length, 2);
+      assert.equal(data.runs[0].run_number, 1);
+      assert.equal(data.runs[1].run_number, 2);
+      assert.equal(data.latest_run, 2);
+    } finally {
+      rmSync(tmpBase, { recursive: true, force: true });
+    }
+  });
+
+  it('stores reason on each run', () => {
+    const { tmpBase, evidenceDir } = createTempSessions();
+    try {
+      const data = buildMultiRunReportData(evidenceDir, 'test-change', baseConfig);
+      assert.equal(data.runs[0].reason, null);
+      assert.equal(data.runs[1].reason, 'fix card-tap animation');
+    } finally {
+      rmSync(tmpBase, { recursive: true, force: true });
+    }
+  });
+
+  it('classifies carried criteria correctly', () => {
+    const { tmpBase, evidenceDir } = createTempSessions();
+    try {
+      const data = buildMultiRunReportData(evidenceDir, 'test-change', baseConfig);
+      const run2 = data.runs[1];
+      const chevron = run2.criteria.find(c => c.criterion === 'chevron-visible');
+      assert.equal(chevron.classification, 'carried');
+      assert.equal(chevron.carry_info.from_run, 1);
+      assert.equal(chevron.carry_info.reason, 'No code changes affect chevron');
+    } finally {
+      rmSync(tmpBase, { recursive: true, force: true });
+    }
+  });
+
+  it('inherits approval for carried criteria from prior feedback', () => {
+    const { tmpBase, evidenceDir } = createTempSessions();
+    try {
+      const data = buildMultiRunReportData(evidenceDir, 'test-change', baseConfig);
+      const run2 = data.runs[1];
+      const chevron = run2.criteria.find(c => c.criterion === 'chevron-visible');
+      assert.equal(chevron.carried_approval, 'accepted');
+    } finally {
+      rmSync(tmpBase, { recursive: true, force: true });
+    }
+  });
+
+  it('classifies re-verified criteria correctly', () => {
+    const { tmpBase, evidenceDir } = createTempSessions();
+    try {
+      const data = buildMultiRunReportData(evidenceDir, 'test-change', baseConfig);
+      const run2 = data.runs[1];
+      const cardTap = run2.criteria.find(c => c.criterion === 'card-tap');
+      assert.equal(cardTap.classification, 're-verified');
+    } finally {
+      rmSync(tmpBase, { recursive: true, force: true });
+    }
+  });
+
+  it('classifies new criteria correctly', () => {
+    const { tmpBase, evidenceDir } = createTempSessions();
+    try {
+      const data = buildMultiRunReportData(evidenceDir, 'test-change', baseConfig);
+      const run2 = data.runs[1];
+      const newFeature = run2.criteria.find(c => c.criterion === 'new-feature');
+      assert.equal(newFeature.classification, 'new');
+    } finally {
+      rmSync(tmpBase, { recursive: true, force: true });
+    }
+  });
+
+  it('first run criteria have null classification', () => {
+    const { tmpBase, evidenceDir } = createTempSessions();
+    try {
+      const data = buildMultiRunReportData(evidenceDir, 'test-change', baseConfig);
+      const run1 = data.runs[0];
+      for (const c of run1.criteria) {
+        assert.equal(c.classification, null);
+      }
+    } finally {
+      rmSync(tmpBase, { recursive: true, force: true });
+    }
+  });
+
+  it('includes change_name at top level', () => {
+    const { tmpBase, evidenceDir } = createTempSessions();
+    try {
+      const data = buildMultiRunReportData(evidenceDir, 'test-change', baseConfig);
+      assert.equal(data.change_name, 'test-change');
+    } finally {
+      rmSync(tmpBase, { recursive: true, force: true });
+    }
   });
 });
