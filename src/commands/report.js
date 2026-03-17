@@ -69,7 +69,7 @@ export function registerReport(program) {
       let template = readFileSync(templatePath, 'utf8');
 
       // Inject data
-      template = template.replace('/*__REPORT_DATA__*/', JSON.stringify(reportData));
+      template = template.replace('/*__REPORT_DATA__*/null', JSON.stringify(reportData));
 
       // Write report
       const reportsDir = resolve(projectRoot, config.reports.output_dir);
