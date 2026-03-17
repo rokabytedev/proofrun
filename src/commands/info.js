@@ -1,9 +1,9 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { success } from '../output.js';
-import { loadConfig, withDefaults, LOCK_DIR } from '../config.js';
+import { loadConfig, withDefaults } from '../config.js';
 import { findActiveSession } from '../session.js';
-import { listLocks } from '../locking.js';
+import { getGlobalLockDir, listLocks } from '../locking.js';
 
 function parseFrontmatter(content) {
   const match = content.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
@@ -73,12 +73,12 @@ export function registerInfo(program) {
         checks.push({ name: 'knowledge', status: 'fail', detail: '.proofrun/knowledge/ not found. Run `proofrun init`.' });
       }
 
-      // 3. Lock dir check
-      const lockDir = resolve(projectRoot, LOCK_DIR);
+      // 3. Global lock dir check
+      const lockDir = getGlobalLockDir();
       if (existsSync(lockDir)) {
-        checks.push({ name: 'lock_dir', status: 'pass', detail: `${LOCK_DIR} exists` });
+        checks.push({ name: 'lock_dir', status: 'pass', detail: `~/.proofrun/locks/ exists (global device locks)` });
       } else {
-        checks.push({ name: 'lock_dir', status: 'pass', detail: `${LOCK_DIR} will be created on first session start` });
+        checks.push({ name: 'lock_dir', status: 'pass', detail: `~/.proofrun/locks/ will be created on first session start` });
       }
 
       // 4. Active session

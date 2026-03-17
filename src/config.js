@@ -6,8 +6,6 @@ const CONFIG_FILENAME = 'config.toml';
 const CONFIG_DIR = '.proofrun';
 const KNOWLEDGE_DIR = 'knowledge';
 
-export const LOCK_DIR = '.proofrun/locks';
-
 export function findConfigPath(startDir = process.cwd()) {
   let dir = startDir;
   while (true) {
@@ -64,7 +62,7 @@ export function requireConfig(command) {
 }
 
 const DEFAULTS = {
-  reports: { output_dir: '.proofrun/reports', embed_screenshots: true, open_after_generate: false },
+  reports: { output_dir: '.proofrun/reports', embed_screenshots: true },
   session: { evidence_dir: '.proofrun/sessions' },
 };
 

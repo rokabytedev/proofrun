@@ -1,7 +1,6 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { execSync } from 'node:child_process';
 import { success, error } from '../output.js';
 import { requireConfig, withDefaults } from '../config.js';
 import {
@@ -15,86 +14,39 @@ export function registerReport(program) {
   program
     .command('report')
     .description('Generate an interactive HTML verification report')
+    .option('--change <name>', 'Change name (auto-detected from active/recent session if omitted)')
     .option('--output <path>', 'Output path for the report')
-    .option('--open', 'Open report in default browser after generation')
-    .option('--session <id>', 'Session ID (defaults to active or most recent)')
-    .option('--change <name>', 'Generate multi-run report for a change name')
     .action(async (opts) => {
       const config = withDefaults(requireConfig('report'));
       const projectRoot = config._dir;
       const evidenceDir = resolve(projectRoot, config.session.evidence_dir);
 
-      let reportData;
-      let changeName;
-
-      if (opts.change) {
-        // Multi-run mode: find all sessions for this change
-        reportData = buildMultiRunReportData(evidenceDir, opts.change, config);
-        changeName = opts.change;
-      } else {
-        // Single-session mode (backward compat)
-        let sessionDir, sessionId, state;
-        if (opts.session) {
-          sessionDir = resolve(evidenceDir, opts.session);
-          sessionId = opts.session;
-          state = loadSessionState(sessionDir);
-        } else {
-          const active = findActiveSession(evidenceDir);
-          if (active) {
-            sessionDir = active.sessionDir;
-            sessionId = active.sessionId;
-            state = active.state;
-          } else {
-            // Try most recent session
-            const { readdirSync } = await import('node:fs');
-            if (existsSync(evidenceDir)) {
-              const dirs = readdirSync(evidenceDir, { withFileTypes: true })
-                .filter(d => d.isDirectory())
-                .map(d => d.name)
-                .sort()
-                .reverse();
-              if (dirs.length > 0) {
-                sessionId = dirs[0];
-                sessionDir = resolve(evidenceDir, sessionId);
-                state = loadSessionState(sessionDir);
-              }
-            }
-            if (!sessionDir) {
-              error('report', 'No session found. Run `proofrun session start` first.');
+      // Determine change name: explicit flag > active session > most recent session
+      let changeName = opts.change;
+      if (!changeName) {
+        const active = findActiveSession(evidenceDir);
+        if (active) {
+          changeName = active.state.change_name;
+        } else if (existsSync(evidenceDir)) {
+          const dirs = readdirSync(evidenceDir, { withFileTypes: true })
+            .filter(d => d.isDirectory())
+            .map(d => d.name)
+            .sort()
+            .reverse();
+          for (const dir of dirs) {
+            const state = loadSessionState(resolve(evidenceDir, dir));
+            if (state?.change_name) {
+              changeName = state.change_name;
+              break;
             }
           }
         }
-
-        const evidence = loadEvidence(sessionDir);
-        if (!evidence || evidence.entries.length === 0) {
-          error('report', 'No evidence recorded in session. Record steps, screenshots, and judgments first.');
+        if (!changeName) {
+          error('report', 'No session found. Specify --change <name>.');
         }
-
-        // Build single-session report, wrapped in runs array for template consistency
-        const singleRunData = buildReportData(evidence, state, sessionDir, config);
-        changeName = singleRunData.change_name;
-
-        reportData = {
-          change_name: singleRunData.change_name,
-          runs: [{
-            run_number: 1,
-            session_id: singleRunData.session_id,
-            reason: state?.reason || null,
-            started_at: singleRunData.started_at,
-            device: singleRunData.device,
-            criteria: singleRunData.criteria,
-            prerequisites: singleRunData.prerequisites,
-            general_entries: singleRunData.general_entries,
-            summary: singleRunData.summary,
-          }],
-          latest_run: 1,
-          generated_at: singleRunData.generated_at,
-          // Legacy fields for backward compat
-          session_id: singleRunData.session_id,
-          summary: singleRunData.summary,
-          criteria: singleRunData.criteria,
-        };
       }
+
+      const reportData = buildMultiRunReportData(evidenceDir, changeName, config);
 
       // Load template
       const templatePath = resolve(__dirname, '../../templates/report.html');
@@ -111,19 +63,11 @@ export function registerReport(program) {
       mkdirSync(reportsDir, { recursive: true });
 
       const date = new Date().toISOString().slice(0, 10);
-      const outputPath = opts.output || resolve(reportsDir, `${date}-${changeName || 'unknown'}.html`);
+      const outputPath = opts.output || resolve(reportsDir, `${date}-${changeName}.html`);
       writeFileSync(outputPath, template);
 
       const { statSync } = await import('node:fs');
       const reportSize = statSync(outputPath).size;
-
-      // Open in browser if requested
-      const shouldOpen = opts.open || config.reports.open_after_generate;
-      if (shouldOpen) {
-        try {
-          execSync(`open "${outputPath}"`, { stdio: 'pipe' });
-        } catch { /* ignore open failure */ }
-      }
 
       const latestRun = reportData.runs[reportData.runs.length - 1];
       const latestSummary = latestRun.summary;
@@ -144,14 +88,12 @@ export function registerReport(program) {
           fixes: c.fixes.length,
         })),
         report_size_bytes: reportSize,
-        opened_in_browser: shouldOpen,
       }, (data) =>
         `Report generated: ${data.report_path}\n` +
         `Session: ${data.session_id}\n` +
         `Change: ${data.change_name}\n` +
         (data.runs > 1 ? `Runs: ${data.runs}\n` : '') +
-        `Criteria: ${data.criteria.length} (${data.summary.pass} pass, ${data.summary.fail} fail, ${data.summary.human_required} human)` +
-        (data.opened_in_browser ? '\nOpened in browser.' : '')
+        `Criteria: ${data.criteria.length} (${data.summary.pass} pass, ${data.summary.fail} fail, ${data.summary.human_required} human)`
       );
     });
 }
@@ -164,7 +106,7 @@ export function buildMultiRunReportData(evidenceDir, changeName, config) {
   }
 
   const runs = [];
-  const priorFeedback = new Map(); // sessionId -> feedback data
+  const priorFeedback = new Map();
 
   for (let i = 0; i < sessions.length; i++) {
     const { sessionId, sessionDir, state } = sessions[i];
@@ -189,7 +131,6 @@ export function buildMultiRunReportData(evidenceDir, changeName, config) {
     // Classify criteria for runs after the first
     if (runNumber > 1) {
       for (const criterion of runData.criteria) {
-        // Check if this criterion has a carry entry
         const carryEntry = evidence.entries.find(
           e => e.type === 'carry' && e.criterion === criterion.criterion
         );
@@ -202,7 +143,6 @@ export function buildMultiRunReportData(evidenceDir, changeName, config) {
             reason: carryEntry.reason,
           };
 
-          // Inherit approval from prior run's feedback
           const priorFb = priorFeedback.get(carryEntry.carried_from_session);
           if (priorFb) {
             const priorCriterionFb = priorFb.criteria?.find(
@@ -217,7 +157,6 @@ export function buildMultiRunReportData(evidenceDir, changeName, config) {
             criterion.carried_approval = null;
           }
         } else {
-          // Check if criterion existed in any prior run
           const existedInPrior = runs.some(r =>
             r.criteria.some(c => c.criterion === criterion.criterion)
           );
@@ -225,7 +164,6 @@ export function buildMultiRunReportData(evidenceDir, changeName, config) {
         }
       }
     } else {
-      // First run: no classification needed
       for (const criterion of runData.criteria) {
         criterion.classification = null;
       }
@@ -244,32 +182,28 @@ export function buildMultiRunReportData(evidenceDir, changeName, config) {
     });
   }
 
-  const latestRun = runs[runs.length - 1];
+  if (runs.length === 0) {
+    error('report', `Sessions found for change '${changeName}' but none contain evidence.`);
+  }
 
   return {
     change_name: changeName,
     runs,
     latest_run: runs.length,
     generated_at: new Date().toISOString(),
-    // Convenience fields for latest run
-    session_id: latestRun.session_id,
-    summary: latestRun.summary,
-    criteria: latestRun.criteria,
   };
 }
 
 export function buildReportData(evidence, state, sessionDir, config) {
   const entries = evidence.entries;
 
-  // Separate prerequisite entries
   const prerequisites = entries.filter(e => e.type === 'prerequisite');
 
-  // Group remaining entries by criterion name
   const criterionMap = new Map();
   const generalEntries = [];
 
   for (const entry of entries) {
-    if (entry.type === 'prerequisite') continue; // Already separated
+    if (entry.type === 'prerequisite') continue;
 
     if (entry.criterion != null) {
       if (!criterionMap.has(entry.criterion)) {

@@ -8,4 +8,3 @@ evidence_dir = ".proofrun/sessions"
 [reports]
 output_dir = ".proofrun/reports"
 embed_screenshots = true
-open_after_generate = false

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync, rmSync, mkdtempSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { withDefaults, findConfigPath, validateConfig, LOCK_DIR } from './config.js';
+import { withDefaults, findConfigPath, validateConfig } from './config.js';
 
 describe('withDefaults', () => {
   it('fills missing fields from defaults', () => {
@@ -28,12 +28,6 @@ describe('withDefaults', () => {
     const config = withDefaults({});
     assert.equal(config.simulator, undefined);
     assert.equal(config.port_range, undefined);
-  });
-});
-
-describe('LOCK_DIR', () => {
-  it('is hardcoded to .proofrun/locks', () => {
-    assert.equal(LOCK_DIR, '.proofrun/locks');
   });
 });
 

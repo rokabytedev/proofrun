@@ -49,7 +49,7 @@ Read relevant knowledge files. Only load topics relevant to your task.
 ```
 settings-translated     → All Settings screen labels show correct translations
 library-search-works    → Library search returns results and is navigable
-recording-flow-e2e      → Record → playback → delete flow completes without errors
+onboarding-flow-e2e     → Onboarding screens display correctly and can be navigated to completion
 ```
 
 Classify each as agent-verifiable or human-required. Read `knowledge/boundaries` if available.
@@ -60,15 +60,37 @@ Criteria can be added during exploration — you don't need to define them all u
 
 ### 3. Set Up Environment
 
-Follow `knowledge/environment` and `knowledge/simulators` for platform-specific instructions. You **MUST**:
+Follow `knowledge/environment` and `knowledge/devices` for platform-specific instructions.
 
-1. **Discover or create a device** — get its identifier
-2. **Boot the device** if not running
-3. **Build and install the app** with your latest changes (not a cached build)
-4. **Verify the dev server** is running and connected (if applicable)
-5. **Confirm the device** is in a clean state
+#### Device Management
 
-Update knowledge files with everything you discover.
+1. **Read `knowledge/devices`** for the device management policy.
+   - If no policy is recorded yet, ask the human: **(1) Create a dedicated proofrun device pool** (recommended — no conflicts) or **(2) Use whatever device is available** (risk of conflicts).
+   - Record the choice in `knowledge/devices`.
+
+2. **Check device availability** before using any device:
+   ```bash
+   npx proofrun device status
+   ```
+   - If a device is **free** — proceed to use it.
+   - If a device is **stale** (PID dead or session stopped) — use `--force-unlock` to take over.
+   - If a device is **actively locked** — do NOT take it. Ask the human for approval first.
+   - **Never use a device without locking it** via `proofrun session start`.
+
+3. **If dedicated pool policy and no devices exist**, create a pool:
+   - Research the latest OS version (e.g., `xcrun simctl list runtimes`)
+   - Create ~3 devices with form factor variety:
+     - Large phone, latest gen (e.g., "(Proofrun-only) iPhone 17 Pro Max")
+     - Small phone, prior gen (e.g., "(Proofrun-only) iPhone 16")
+     - Tablet (e.g., "(Proofrun-only) iPad Air 11")
+   - Record the created devices in `knowledge/devices`
+
+#### Build & Dev Server
+
+1. **Build and install the app** with your latest changes (not a cached build)
+2. **Check for port conflicts** before starting a dev server — another agent or process may be using the default port. Use an alternative port if needed.
+3. **Verify the dev server** is running and connected (if applicable)
+4. **Confirm the device** is in a clean state
 
 ### 4. Verify Environment (Checkpoint)
 
@@ -88,7 +110,7 @@ npx proofrun session start --change <name> --device <identifier>
 
 Use a descriptive slug for `--change`:
 - "check Chinese translations" → `--change "chinese-locale-audit"`
-- "verify recording flow" → `--change "recording-flow-e2e"`
+- "verify the onboarding flow" → `--change "onboarding-flow-e2e"`
 
 If another session is active, stop it first with `npx proofrun session stop`.
 
@@ -112,7 +134,6 @@ For each agent-verifiable criterion:
 - Use the interaction tool freely
 - Navigate to the relevant screen
 - Try different paths, find elements, verify behavior
-- Update knowledge files as you discover things
 
 **Document phase** (recorded via proofrun):
 - Once you've confirmed the verification path, record the clean steps:
@@ -140,96 +161,114 @@ npx proofrun judge --criterion audio-playback-quality --human "Cannot verify aud
 npx proofrun evidence
 ```
 
-Review the criteria list. Confirm all have judgments before generating the report.
+Review the criteria list. Confirm all have judgments before stopping the session.
 
-### 9. Generate Report
-
-```bash
-npx proofrun report --change <name>
-```
-
-Use `--change` to generate a multi-run report that aggregates all sessions for the change. This shows tabs for each run, with carried/re-verified/new badges on criteria.
-
-For a single-session report (legacy): `npx proofrun report --open`
-
-Tell the user the report is ready and provide the file path.
-
-### 10. Serve Report for Live Feedback
-
-After generating the report, start the feedback server so the reviewer can submit feedback directly from the browser:
-
-```bash
-npx proofrun serve --change <name> &
-```
-
-This starts an HTTP server that:
-- Serves the report at `http://localhost:<port>`
-- Accepts feedback submissions via "Submit Feedback" or "LGTM" buttons in the report
-- Writes feedback to the latest session's `feedback.json`
-- Exits automatically after feedback is received
-
-Tell the user the URL. The serve process blocks until feedback is received or times out (default 30 minutes).
-
-To stop a running server: `npx proofrun serve --stop`
-
-### 11. Clean Up
+### 9. Stop Session
 
 ```bash
 npx proofrun session stop
 ```
 
-Stop the dev server if appropriate. Always stop the session — this releases the device lock.
+Stop the session **before** generating the report. This releases the device lock immediately — don't hold the device hostage during report generation and human review, which can take a long time.
 
-### 12. Handle Human Feedback
+### 10. Generate Report
 
-When feedback is received (via serve or exported JSON file):
-1. Read the feedback (serve writes it to the session's `feedback.json`)
-2. For each rejected criterion: understand the comment, fix the issue
-3. Start a new session and re-verify rejected criteria
-4. Generate a new report
+```bash
+npx proofrun report --change <name>
+```
+
+This generates a multi-run report that aggregates all sessions for the change. If multiple runs exist, the report shows tabs for each run with carried/re-verified/new badges on criteria.
+
+### 11. Serve Report for Live Feedback
+
+Start the feedback server so the reviewer can submit feedback directly from the browser. **Run this as a background task** so you get notified when feedback arrives:
+
+Run `npx proofrun serve --change <name>` as a **background task** (use your tool's background execution capability — do NOT run it in the foreground or you won't be able to continue working).
+
+Once the server starts, tell the user:
+
+> Your verification report is ready for review at http://localhost:PORT
+>
+> Please review each criterion — approve or reject with comments.
+> Click **Submit Feedback** when done, or **LGTM** to approve everything.
+> I'll be notified automatically when you submit and will address any feedback.
+
+Then wait for the background task to complete. When it does, read the feedback from the latest session's `feedback.json`.
+
+To stop a running server manually: `npx proofrun serve --stop`
+
+### 12. Handle Feedback
+
+When the background serve task completes (feedback received):
+
+1. Read `feedback.json` from the latest session directory
+2. Check the result:
+   - **LGTM**: All criteria approved. Shut down the simulator/emulator to free system RAM. Done!
+   - **Rejections**: For each rejected criterion, understand the comment and fix the issue. Then proceed to Follow-Up Runs.
 
 ### 13. Follow-Up Runs
 
-When addressing feedback from a rejected criterion:
+When addressing feedback from rejected criteria:
+
 1. Fix the code
-2. Start a new session with the SAME `--change` name and a `--reason`:
+2. Re-acquire a device (it was released at session stop). Check `proofrun device status` first.
+3. Start a new session with the SAME `--change` name and a `--reason`:
    ```
    npx proofrun session start --change <same-name> --device <id> --reason "fix <what-changed>"
    ```
-3. **Carry forward approved criteria** that your changes cannot affect:
+4. **Carry forward approved criteria** that your changes cannot affect:
    ```
    npx proofrun carry --criterion <name> --reason "No code changes affect this"
    ```
    This creates an audit trail linking to the prior run's judgment. The carried criterion inherits its prior approval in the multi-run report.
 
-4. **Re-verify criteria** that your changes could affect — record fresh evidence and judgments.
+5. **Re-verify criteria** that your changes could affect — record fresh evidence and judgments.
 
-5. Use `npx proofrun report --change <name>` to generate the multi-run report. The report shows:
-   - **Carried** criteria with gray badge and carry reason (auto-approved if prior run was approved)
-   - **Re-verified** criteria with blue badge (needs new review)
-   - **New** criteria with purple badge (needs review)
+6. Stop the session, generate the report, and serve again for feedback.
 
-**Decision: carry vs re-verify**: Carry only when your code changes absolutely cannot affect the criterion. When in doubt, re-verify. Carrying is faster but re-verifying is safer.
+The multi-run report shows:
+- **Carried** criteria with gray badge and carry reason (auto-approved if prior run was approved)
+- **Re-verified** criteria with blue badge (needs new review)
+- **New** criteria with purple badge (needs review)
+
+**Decision: carry vs re-verify**: Carry only when your code changes absolutely cannot affect the criterion. When in doubt, re-verify. Carrying is faster but re-verifying is safer. Default to re-verifying everything unless you are certain.
 
 ## Principles
 
 - **CLI is dumb, you are smart**: The CLI manages locks, records evidence, and generates reports. YOU decide what to verify, how to navigate, and what passes/fails.
 - **Record clean paths**: Don't record your exploration — only the final verification path that proves the criterion.
-- **Update knowledge immediately**: Update `.proofrun/knowledge/` the moment you learn something — a navigation path, an element identifier, a timing quirk. Do not wait until the end.
 - **Screenshots are proof**: Take screenshots at key verification points.
 - **One criterion at a time**: Verify, record evidence, judge. Then move to the next.
 - **Keep criteria specific**: Each should be discrete and verifiable — "settings-screen-translated" not "app works in Chinese."
 - **Human-in-the-loop**: If stuck after 2 attempts, ask the user. Don't spiral.
 - **Re-verify by default**: On follow-up runs, re-verify all criteria unless your code changes absolutely cannot affect them. When in doubt, re-verify.
+- **Be a good citizen**: Never use a device without locking it. Don't take over active locks without human approval. Shut down devices when done.
 - **Run `npx proofrun --help`** for complete command reference.
 
 ## Knowledge Management
 
 Knowledge files at `.proofrun/knowledge/` are **working notes, not specifications**. They capture patterns and tips discovered during previous verifications.
 
-- Treat them as hints — verify against the actual app, not the knowledge file
+### What to update (and where)
+
+| Discovery | Target File |
+|-----------|-------------|
+| Build commands, dev server setup | `environment.md` |
+| Element identifiers, testID conventions | `interaction.md` |
+| Navigation patterns, interaction quirks | `interaction.md` |
+| New devices added to pool, device policy | `devices.md` |
+| Verification boundary discovered | `boundaries.md` |
+
+### What NOT to put in knowledge files
+
+- Current screen state or test observations (session-specific)
+- Criteria names, judgments, or verification results (belong in session evidence)
+- Temporary workarounds for this verification run
+- Anything that will be different in the next session
+
+### General guidelines
+
+- Treat knowledge files as hints — verify against the actual app, not the knowledge file
 - If you find something contradicts a knowledge file, update the file
-- Knowledge files are advisory — the app is the source of truth
-- **Update immediately** when you discover something, not at the end of the session
+- **Update immediately** when you discover something durable, not at the end of the session
 - Create new topic files for distinct knowledge areas
-- **Do NOT put change-specific data in knowledge files** — they persist across verifications. Change-specific criteria and verification details belong in session evidence, not here.

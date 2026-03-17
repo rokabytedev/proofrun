@@ -9,6 +9,7 @@ import { registerPrerequisite } from './commands/prerequisite.js';
 import { registerReport } from './commands/report.js';
 import { registerCarry } from './commands/carry.js';
 import { registerServe } from './commands/serve.js';
+import { registerDevice } from './commands/device.js';
 import { setJsonMode } from './output.js';
 
 const HELP_TEXT = `
@@ -27,8 +28,13 @@ SESSION COMMANDS
     --change <name>                        Change name or verification label (required)
     --device <identifier>                  Device identifier to lock (required)
     [--reason <text>]                      Reason for this run (follow-up runs)
+    [--force-unlock]                       Force-unlock a device that is already locked
   proofrun session stop                  Release device lock, finalize session
   proofrun session status                Show active session or lock state
+
+DEVICE COMMANDS
+  proofrun device status                 Show device lock status (global)
+    [--device <id>]                        Check a specific device
 
 KNOWLEDGE COMMANDS
   proofrun knowledge --list              List available knowledge topics
@@ -59,10 +65,8 @@ EVIDENCE COMMANDS
 
 REPORT COMMANDS
   proofrun report                        Generate interactive HTML report
+    [--change <name>]                      Change name (auto-detected if omitted)
     [--output <path>]                      Custom output path
-    [--open]                               Open in browser after generation
-    [--session <id>]                       Use specific session (default: active)
-    [--change <name>]                      Multi-run report for a change name
   proofrun serve                         Start feedback server for a report
     --change <name>                        Change name (required)
     [--port <port>]                        Port number (default: random)
@@ -99,9 +103,9 @@ EXAMPLES
   proofrun screenshot /tmp/screen.jpeg --criterion settings-translated --note "Settings screen visible"
   proofrun judge --criterion settings-translated --pass "All labels translated correctly"
 
-  # Generate report and clean up
-  proofrun report --open
+  # Stop session and generate report
   proofrun session stop
+  proofrun report --change chinese-locale-audit
 
 For the agent verification workflow, install the skill:
   npx skills add rokabytedev/proofrun -g
@@ -146,6 +150,7 @@ export function createCli() {
   registerReport(program);
   registerCarry(program);
   registerServe(program);
+  registerDevice(program);
 
   return program;
 }

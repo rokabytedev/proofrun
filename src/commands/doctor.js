@@ -1,8 +1,7 @@
 import { existsSync, readdirSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { success } from '../output.js';
-import { loadConfig, withDefaults, LOCK_DIR } from '../config.js';
-import { listLocks } from '../locking.js';
+import { loadConfig, withDefaults } from '../config.js';
+import { getGlobalLockDir, listLocks } from '../locking.js';
 
 export function registerDoctor(program) {
   program
@@ -36,14 +35,10 @@ export function registerDoctor(program) {
         checks.push({ name: 'knowledge', status: 'fail', detail: '.proofrun/knowledge/ not found. Run `proofrun init` to seed knowledge.' });
       }
 
-      // Check 3: Lock directory
-      const lockDir = resolve(config._dir, LOCK_DIR);
-      if (existsSync(lockDir)) {
-        const locks = listLocks(lockDir);
-        checks.push({ name: 'lock_dir', status: 'pass', detail: `${LOCK_DIR} exists (${locks.length} lock(s) held)` });
-      } else {
-        checks.push({ name: 'lock_dir', status: 'pass', detail: `${LOCK_DIR} will be created on first session start` });
-      }
+      // Check 3: Global lock directory
+      const lockDir = getGlobalLockDir();
+      const locks = listLocks(lockDir);
+      checks.push({ name: 'lock_dir', status: 'pass', detail: `~/.proofrun/locks/ (global, ${locks.length} lock(s) held)` });
 
       const allPassed = checks.every(c => c.status === 'pass');
       success('doctor', { all_passed: allPassed, checks }, formatDoctor);

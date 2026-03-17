@@ -144,11 +144,11 @@
     background: var(--green); color: var(--bg);
   }
   .btn-export {
-    padding: 8px 20px; border-radius: 6px; border: none;
-    background: var(--blue); color: var(--bg); cursor: pointer;
-    font-weight: 600; font-size: 14px;
+    padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border);
+    background: transparent; color: var(--text-muted); cursor: pointer;
+    font-size: 12px;
   }
-  .btn-export:hover { opacity: 0.9; }
+  .btn-export:hover { border-color: var(--text-muted); color: var(--text); }
   .confirmation-msg {
     color: var(--green); font-size: 14px; font-weight: 600;
     display: none;
@@ -231,24 +231,11 @@ let topLevelComment = '';
 let submitted = false;
 
 function getCurrentRun() {
-  const d = REPORT_DATA;
-  if (d.runs && d.runs.length > 0) return d.runs[currentRunIndex];
-  // Legacy single-run fallback
-  return {
-    run_number: 1,
-    session_id: d.session_id,
-    reason: null,
-    started_at: d.started_at,
-    device: d.device,
-    criteria: d.criteria,
-    prerequisites: d.prerequisites,
-    general_entries: d.general_entries,
-    summary: d.summary,
-  };
+  return REPORT_DATA.runs[currentRunIndex];
 }
 
 function getRunCount() {
-  return REPORT_DATA.runs ? REPORT_DATA.runs.length : 1;
+  return REPORT_DATA.runs.length;
 }
 
 function init() {
@@ -360,12 +347,13 @@ function renderActionBar() {
     const hasRejections = checkForRejections();
     bar.innerHTML =
       `<span class="confirmation-msg" id="confirm-msg"></span>` +
+      `<button class="btn-export" onclick="exportFeedback()">Export JSON</button>` +
       `<button class="btn-action btn-submit" id="btn-submit" onclick="submitFeedback()">Submit Feedback</button>` +
       `<button class="btn-action btn-lgtm" id="btn-lgtm" onclick="submitLgtm()"` +
       `${hasRejections ? ' disabled title="Resolve rejections or submit feedback with comments"' : ''}>LGTM</button>`;
-  } else if (!isServeMode) {
-    // Static mode: show export button
-    bar.innerHTML = `<button class="btn-export" onclick="exportFeedback()">Export Feedback</button>`;
+  } else if (isLatestRun) {
+    // Static mode: show export button as the only action
+    bar.innerHTML = `<button class="btn-export" onclick="exportFeedback()">Export Feedback JSON</button>`;
   } else {
     bar.innerHTML = '';
   }
@@ -593,7 +581,7 @@ function disableAllInputs() {
 
 function loadFeedbackState() {
   try {
-    const run = REPORT_DATA.runs ? REPORT_DATA.runs[REPORT_DATA.runs.length - 1] : REPORT_DATA;
+    const run = REPORT_DATA.runs[REPORT_DATA.runs.length - 1];
     const key = `proofrun-feedback-${run.session_id}`;
     return JSON.parse(localStorage.getItem(key) || '{}');
   } catch { return {}; }
@@ -601,7 +589,7 @@ function loadFeedbackState() {
 
 function saveFeedbackState() {
   try {
-    const run = REPORT_DATA.runs ? REPORT_DATA.runs[REPORT_DATA.runs.length - 1] : REPORT_DATA;
+    const run = REPORT_DATA.runs[REPORT_DATA.runs.length - 1];
     const key = `proofrun-feedback-${run.session_id}`;
     localStorage.setItem(key, JSON.stringify(feedbackState));
   } catch {}
@@ -609,7 +597,7 @@ function saveFeedbackState() {
 
 function loadTopLevelComment() {
   try {
-    const run = REPORT_DATA.runs ? REPORT_DATA.runs[REPORT_DATA.runs.length - 1] : REPORT_DATA;
+    const run = REPORT_DATA.runs[REPORT_DATA.runs.length - 1];
     const key = `proofrun-tlc-${run.session_id}`;
     return localStorage.getItem(key) || '';
   } catch { return ''; }
@@ -617,7 +605,7 @@ function loadTopLevelComment() {
 
 function saveTopLevelComment() {
   try {
-    const run = REPORT_DATA.runs ? REPORT_DATA.runs[REPORT_DATA.runs.length - 1] : REPORT_DATA;
+    const run = REPORT_DATA.runs[REPORT_DATA.runs.length - 1];
     const key = `proofrun-tlc-${run.session_id}`;
     localStorage.setItem(key, topLevelComment);
   } catch {}

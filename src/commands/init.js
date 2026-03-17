@@ -43,7 +43,7 @@ export function registerInit(program) {
 
       // Add transient dirs to .gitignore
       const gitignorePath = resolve(process.cwd(), '.gitignore');
-      const entriesToAdd = ['.proofrun/locks/', '.proofrun/sessions/', '.proofrun/reports/'];
+      const entriesToAdd = ['.proofrun/sessions/', '.proofrun/reports/'];
       let gitignoreContent = '';
       if (existsSync(gitignorePath)) {
         gitignoreContent = readFileSync(gitignorePath, 'utf8');

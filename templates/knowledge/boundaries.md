@@ -20,6 +20,9 @@ description: What the agent can verify via an interaction tool vs what requires 
 | Layout structure | Compare element coordinates for relative positioning |
 | Error states | Trigger error condition, verify error message appears |
 | Loading states | Trigger async operation, verify loading indicator |
+| Internationalization | Read labels in accessibility tree, verify correct language/locale formatting, check RTL element positioning via coordinates |
+| Alignment & overflow | Compare element coordinates for alignment, detect text truncation via accessibility tree |
+| Element overlap | Compare bounding boxes of nearby elements |
 
 ## Human-Required
 
@@ -30,8 +33,8 @@ description: What the agent can verify via an interaction tool vs what requires 
 | Performance | Not reliably measurable via interaction tools |
 | Real-device-only features | Hardware sensors, NFC, etc. |
 | VoiceOver/TalkBack announcements | Not capturable via current tools |
-| Visual polish | Subtle spacing, colors, animations need human eye |
-| Complex internationalization | RTL layouts, font rendering edge cases |
+| Animations | Smoothness, timing feel, visual quality require human eye |
+| Subjective aesthetics | "Does this look good" — taste judgment, not measurable |
 | Network conditions | Need actual slow/offline network |
 | Multi-device sync | Requires multiple devices |
 | Push notifications | Real delivery pipeline required |
@@ -39,6 +42,6 @@ description: What the agent can verify via an interaction tool vs what requires 
 ## Classification Guidelines
 
 - If you can detect it via the accessibility tree or element coordinates — agent-verifiable
-- If it requires human perception (hearing, visual judgment) — human-required
+- If it requires human sensory perception that tools cannot capture (hearing, animation feel) or subjective aesthetic judgment — human-required
 - When uncertain, attempt verification — if the tool can detect it, it's verifiable
 - Mark borderline cases as `--human` with reasoning so the reviewer understands

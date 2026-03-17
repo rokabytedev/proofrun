@@ -293,4 +293,21 @@ describe('buildMultiRunReportData', () => {
       rmSync(tmpBase, { recursive: true, force: true });
     }
   });
+
+  it('does not include legacy top-level convenience fields', () => {
+    const { tmpBase, evidenceDir } = createTempSessions();
+    try {
+      const data = buildMultiRunReportData(evidenceDir, 'test-change', baseConfig);
+      assert.equal(data.session_id, undefined);
+      assert.equal(data.summary, undefined);
+      assert.equal(data.criteria, undefined);
+      // Only change_name, runs, latest_run, generated_at at top level
+      assert.ok(data.change_name);
+      assert.ok(data.runs);
+      assert.ok(data.latest_run);
+      assert.ok(data.generated_at);
+    } finally {
+      rmSync(tmpBase, { recursive: true, force: true });
+    }
+  });
 });

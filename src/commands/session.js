@@ -1,8 +1,10 @@
 import { resolve } from 'node:path';
-import { writeFileSync } from 'node:fs';
 import { success, error } from '../output.js';
-import { requireConfig, withDefaults, LOCK_DIR } from '../config.js';
-import { acquireLock, releaseLock, listLocks } from '../locking.js';
+import { requireConfig, withDefaults } from '../config.js';
+import {
+  getGlobalLockDir, acquireLock, releaseLock, listLocks,
+  readLockData, isLockStale, updateLockSessionId,
+} from '../locking.js';
 import {
   generateSessionId, createSessionDir, saveSessionState,
   findActiveSession, loadEvidence, initEvidence,
@@ -19,6 +21,7 @@ export function registerSession(program) {
     .requiredOption('--change <name>', 'Change name or verification label')
     .requiredOption('--device <identifier>', 'Device identifier (UDID, AVD name, etc.) to lock for this session')
     .option('--reason <text>', 'Reason for this run (e.g., "fix card-tap animation")')
+    .option('--force-unlock', 'Force-unlock a device that is already locked (use for stale locks)')
     .action(async (opts) => {
       const rawConfig = requireConfig('session.start');
       const config = withDefaults(rawConfig);
@@ -31,52 +34,48 @@ export function registerSession(program) {
         error('session.start', `Active session already exists: ${existing.sessionId}. Run \`proofrun session stop\` first.`);
       }
 
-      const lockDir = resolve(projectRoot, LOCK_DIR);
+      const lockDir = getGlobalLockDir();
       const resourceName = `dev-${opts.device}`;
 
-      // Check if device is already locked by another session
-      const lock = acquireLock(lockDir, resourceName);
+      // Check if device is already locked
+      const lock = acquireLock(lockDir, resourceName, { project: projectRoot, device: opts.device });
       if (!lock) {
-        // Find which session holds it
-        const locks = listLocks(lockDir);
-        const held = locks.find(l => l.resource === resourceName);
-        const holder = held ? ` (held by session ${held.sessionId})` : '';
-        error('session.start', `Device ${opts.device} is already in use${holder}.`);
+        // Device is locked — check if force-unlock requested
+        const heldPath = resolve(lockDir, `${resourceName}.lock.held`);
+        const lockData = readLockData(heldPath);
+        const staleInfo = lockData ? isLockStale(lockData) : { stale: true, reason: 'Lock data is corrupt' };
+
+        if (opts.forceUnlock) {
+          // Force-unlock: remove existing lock and re-acquire
+          releaseLock({ heldPath });
+          const newLock = acquireLock(lockDir, resourceName, { project: projectRoot, device: opts.device });
+          if (!newLock) {
+            error('session.start', 'Failed to acquire lock after force-unlock.');
+          }
+          // Continue with newLock
+          startSession(newLock, opts, projectRoot, evidenceDir, config);
+          return;
+        }
+
+        // Build diagnostic error message
+        const parts = [`Device ${opts.device} is already locked.`];
+        if (lockData) {
+          if (lockData.session_id) parts.push(`Session: ${lockData.session_id}`);
+          if (lockData.project) parts.push(`Project: ${lockData.project}`);
+          if (lockData.pid) parts.push(`PID: ${lockData.pid}`);
+          if (lockData.locked_at) parts.push(`Locked at: ${lockData.locked_at}`);
+        }
+        if (staleInfo.stale) {
+          parts.push(`Status: STALE (${staleInfo.reason})`);
+          parts.push(`Use --force-unlock to take over: proofrun session start --device ${opts.device} --change <name> --force-unlock`);
+        } else {
+          parts.push(`Status: ACTIVE (${staleInfo.reason})`);
+          parts.push(`This device is in use by another session. Ask human for approval before using --force-unlock.`);
+        }
+        error('session.start', parts.join('\n'));
       }
 
-      // Create session
-      const sessionId = generateSessionId();
-      const sessionDir = createSessionDir(evidenceDir, sessionId);
-
-      const sessionState = {
-        session_id: sessionId,
-        status: 'active',
-        change_name: opts.change,
-        started_at: new Date().toISOString(),
-        stopped_at: null,
-        device: opts.device,
-        reason: opts.reason || null,
-      };
-
-      saveSessionState(sessionDir, sessionState);
-      initEvidence(sessionDir, sessionId, opts.change, opts.device);
-
-      // Write session ID to lock held file (replaces PID placeholder)
-      writeFileSync(lock.heldPath, sessionId);
-
-      success('session.start', {
-        session_id: sessionId,
-        change_name: opts.change,
-        device: opts.device,
-        reason: opts.reason || null,
-        session_dir: `.proofrun/sessions/${sessionId}`,
-      }, (data) =>
-        `Session started: ${data.session_id}\n` +
-        `Change: ${data.change_name}\n` +
-        `Device: ${data.device}\n` +
-        (data.reason ? `Reason: ${data.reason}\n` : '') +
-        `Session dir: ${data.session_dir}`
-      );
+      startSession(lock, opts, projectRoot, evidenceDir, config);
     });
 
   session
@@ -95,8 +94,8 @@ export function registerSession(program) {
 
       const { sessionDir, state } = active;
 
-      // Release device lock
-      const lockDir = resolve(projectRoot, LOCK_DIR);
+      // Release device lock from global lock dir
+      const lockDir = getGlobalLockDir();
       if (state.device) {
         const heldPath = resolve(lockDir, `dev-${state.device}.lock.held`);
         releaseLock({ heldPath });
@@ -134,7 +133,7 @@ export function registerSession(program) {
       const config = withDefaults(rawConfig);
       const projectRoot = config._dir;
       const evidenceDir = resolve(projectRoot, config.session.evidence_dir);
-      const lockDir = resolve(projectRoot, LOCK_DIR);
+      const lockDir = getGlobalLockDir();
 
       const active = findActiveSession(evidenceDir);
       const locks = listLocks(lockDir);
@@ -170,4 +169,39 @@ export function registerSession(program) {
         );
       }
     });
+}
+
+function startSession(lock, opts, projectRoot, evidenceDir, config) {
+  const sessionId = generateSessionId();
+  const sessionDir = createSessionDir(evidenceDir, sessionId);
+
+  const sessionState = {
+    session_id: sessionId,
+    status: 'active',
+    change_name: opts.change,
+    started_at: new Date().toISOString(),
+    stopped_at: null,
+    device: opts.device,
+    reason: opts.reason || null,
+  };
+
+  saveSessionState(sessionDir, sessionState);
+  initEvidence(sessionDir, sessionId, opts.change, opts.device);
+
+  // Update lock held file with real session ID
+  updateLockSessionId(lock.heldPath, sessionId);
+
+  success('session.start', {
+    session_id: sessionId,
+    change_name: opts.change,
+    device: opts.device,
+    reason: opts.reason || null,
+    session_dir: `.proofrun/sessions/${sessionId}`,
+  }, (data) =>
+    `Session started: ${data.session_id}\n` +
+    `Change: ${data.change_name}\n` +
+    `Device: ${data.device}\n` +
+    (data.reason ? `Reason: ${data.reason}\n` : '') +
+    `Session dir: ${data.session_dir}`
+  );
 }
