@@ -41,7 +41,7 @@ export function registerInfo(program) {
       // 1. Config check
       const rawConfig = loadConfig();
       if (!rawConfig) {
-        checks.push({ name: 'config', status: 'fail', detail: '.proofrun/config.toml not found. Run `proofrun init --preset <name>`.' });
+        checks.push({ name: 'config', status: 'fail', detail: '.proofrun/config.toml not found. Run `proofrun init`.' });
         success('info', {
           version,
           config: null,
@@ -70,7 +70,7 @@ export function registerInfo(program) {
         }).sort((a, b) => a.topic.localeCompare(b.topic));
         checks.push({ name: 'knowledge', status: 'pass', detail: `${files.length} topic(s): ${knowledgeTopics.map(t => t.topic).join(', ')}` });
       } else {
-        checks.push({ name: 'knowledge', status: 'fail', detail: '.proofrun/knowledge/ not found. Run `proofrun init --preset <name>`.' });
+        checks.push({ name: 'knowledge', status: 'fail', detail: '.proofrun/knowledge/ not found. Run `proofrun init`.' });
       }
 
       // 3. Lock dir check
@@ -103,7 +103,7 @@ export function registerInfo(program) {
           ? {
               session_id: activeSession.sessionId,
               change_name: activeSession.state.change_name,
-              simulator: activeSession.state.simulator,
+              device: activeSession.state.device,
               started_at: activeSession.state.started_at,
             }
           : null,
@@ -139,12 +139,12 @@ function formatInfo(data) {
   if (data.session) {
     lines.push(`Session: ${data.session.session_id} (active)`);
     lines.push(`  Change: ${data.session.change_name}`);
-    lines.push(`  Simulator: ${data.session.simulator}`);
+    lines.push(`  Device: ${data.session.device}`);
   } else {
     lines.push('Session: none active');
   }
 
-  lines.push(`Locks: ${data.locks.length} simulator(s) in use`);
+  lines.push(`Locks: ${data.locks.length} device(s) in use`);
 
   lines.push('');
   lines.push('Diagnostics:');

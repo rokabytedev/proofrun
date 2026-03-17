@@ -8,7 +8,7 @@ function requireActiveSession(config, command) {
   const evidenceDir = resolve(config._dir, config.session.evidence_dir);
   const active = findActiveSession(evidenceDir);
   if (!active) {
-    error(command, 'No active session. Run `proofrun session start --change <name> --simulator <UDID>` first.');
+    error(command, 'No active session. Run `proofrun session start --change <name> --device <identifier>` first.');
   }
   return active;
 }

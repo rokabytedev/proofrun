@@ -53,7 +53,7 @@ export function registerKnowledge(program) {
           knowledge_dir: '.proofrun/knowledge',
         }, (data) => {
           if (data.topics.length === 0) {
-            return 'No knowledge files found in .proofrun/knowledge/\nRun `proofrun init --preset <name>` to seed knowledge from a template.';
+            return 'No knowledge files found in .proofrun/knowledge/\nRun `proofrun init` to seed knowledge from templates.';
           }
 
           const lines = ['\nAvailable knowledge:\n'];

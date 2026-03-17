@@ -1,6 +1,7 @@
 ---
 name: Change Context
-description: How to discover and understand what to verify. Read when starting verification for a specific change or free-form query.
+description: How to discover and understand what to verify.
+  Read when starting verification for a specific change or free-form query.
 ---
 
 ## For OpenSpec Projects
@@ -23,9 +24,9 @@ and behavior context.
 
 When given a verification query (not a specific change):
 1. Break the query into discrete, verifiable criteria
-2. Assign AC numbers to each criterion
+2. Assign descriptive names to each criterion
 3. Discover more criteria as you explore the app
-4. Keep criteria specific and simulator-verifiable
+4. Keep criteria specific and verifiable via the interaction tool
 
 ## For Other Projects
 

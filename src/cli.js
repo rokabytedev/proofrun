@@ -15,15 +15,15 @@ Proofrun gives AI agents a structured way to verify app behavior,
 capture evidence, and generate interactive HTML reports for human review.
 
 SETUP COMMANDS
-  proofrun init --preset <name>          Create .proofrun/ with config and knowledge
+  proofrun init                          Create .proofrun/ with config and knowledge
   proofrun doctor                        Check infrastructure readiness
   proofrun info                          Project readiness: config, knowledge, session, diagnostics
 
 SESSION COMMANDS
   proofrun session start                 Start a verification session
     --change <name>                        Change name or verification label (required)
-    --simulator <UDID>                     Simulator UDID to lock (required)
-  proofrun session stop                  Release simulator lock, finalize session
+    --device <identifier>                  Device identifier to lock (required)
+  proofrun session stop                  Release device lock, finalize session
   proofrun session status                Show active session or lock state
 
 KNOWLEDGE COMMANDS
@@ -63,8 +63,8 @@ EXIT CODES
   2  Bad arguments or usage error
 
 EXAMPLES
-  # Initialize for an Expo project
-  proofrun init --preset expo
+  # Initialize proofrun in your project
+  proofrun init
 
   # Check project readiness
   proofrun info
@@ -76,8 +76,8 @@ EXAMPLES
   proofrun knowledge --list
   proofrun knowledge interaction
 
-  # Start a verification session (agent provides UDID)
-  proofrun session start --change chinese-locale-audit --simulator B1DBC6F9-5DB6-4DC8-9727-36EC26DDA466
+  # Start a verification session (agent provides device identifier)
+  proofrun session start --change chinese-locale-audit --device B1DBC6F9-5DB6-4DC8-9727-36EC26DDA466
 
   # Record evidence
   proofrun step "Navigate to Settings tab" --criterion settings-translated
@@ -87,10 +87,6 @@ EXAMPLES
   # Generate report and clean up
   proofrun report --open
   proofrun session stop
-
-PRESETS
-  expo               Expo managed workflow
-  react-native-cli   React Native CLI
 
 For the agent verification workflow, install the skill:
   npx skills add rokabytedev/proofrun -g

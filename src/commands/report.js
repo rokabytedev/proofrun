@@ -166,7 +166,7 @@ export function buildReportData(evidence, state, sessionDir, config) {
     session_id: evidence.session_id,
     change_name: evidence.change_name,
     started_at: evidence.started_at,
-    simulator: evidence.simulator,
+    device: evidence.device,
     summary,
     criteria,
     general_entries: generalEntries,

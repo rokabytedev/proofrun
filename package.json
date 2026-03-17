@@ -10,7 +10,6 @@
     "bin/",
     "src/",
     "skills/",
-    "presets/",
     "templates/"
   ],
   "scripts": {
@@ -21,7 +20,7 @@
     "agent",
     "verification",
     "testing",
-    "simulator",
+    "mobile",
     "evidence",
     "report"
   ],

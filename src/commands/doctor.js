@@ -16,7 +16,7 @@ export function registerDoctor(program) {
       if (rawConfig) {
         checks.push({ name: 'config', status: 'pass', detail: '.proofrun/config.toml found and valid' });
       } else {
-        checks.push({ name: 'config', status: 'fail', detail: '.proofrun/config.toml not found. Run `proofrun init --preset <name>`.' });
+        checks.push({ name: 'config', status: 'fail', detail: '.proofrun/config.toml not found. Run `proofrun init`.' });
         success('doctor', { all_passed: false, checks }, formatDoctor);
         return;
       }
@@ -33,7 +33,7 @@ export function registerDoctor(program) {
           checks.push({ name: 'knowledge', status: 'warn', detail: '.proofrun/knowledge/ exists but has no .md files' });
         }
       } else {
-        checks.push({ name: 'knowledge', status: 'fail', detail: '.proofrun/knowledge/ not found. Run `proofrun init --preset <name>` to seed knowledge.' });
+        checks.push({ name: 'knowledge', status: 'fail', detail: '.proofrun/knowledge/ not found. Run `proofrun init` to seed knowledge.' });
       }
 
       // Check 3: Lock directory

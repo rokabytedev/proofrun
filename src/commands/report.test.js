@@ -7,7 +7,7 @@ describe('buildReportData', () => {
     session_id: 'test-session',
     change_name: 'test-change',
     started_at: '2026-03-15T10:00:00Z',
-    simulator: 'B1DBC6F9-5DB6-4DC8-9727-36EC26DDA466',
+    device: 'B1DBC6F9-5DB6-4DC8-9727-36EC26DDA466',
     entries: [],
   };
 
@@ -78,6 +78,11 @@ describe('buildReportData', () => {
     assert.equal(data.criteria.length, 0);
     assert.equal(data.summary.total_criteria, 0);
     assert.equal(data.summary.pass, 0);
+  });
+
+  it('passes device identifier to report data', () => {
+    const data = buildReportData(baseEvidence, {}, '/tmp', baseConfig);
+    assert.equal(data.device, 'B1DBC6F9-5DB6-4DC8-9727-36EC26DDA466');
   });
 
   it('separates general entries from criterion-specific ones', () => {

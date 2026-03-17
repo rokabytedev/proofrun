@@ -1,6 +1,6 @@
 # proofrun
 
-CLI tool and agent skill for AI verification workflows. Gives AI agents a structured way to verify their implementation by interacting with a running app in a simulator, capturing screenshot evidence, and generating interactive HTML reports for human review.
+AI agent verification CLI for mobile apps. Gives AI agents a structured way to verify app behavior by interacting with a running app in a simulator or emulator, capturing screenshot evidence, and generating interactive HTML reports for human review.
 
 ## Install
 
@@ -19,54 +19,56 @@ npx skills add rokabytedev/proofrun -g
 
 ```bash
 # 1. Initialize in your project
-npx proofrun init --preset expo
+npx proofrun init
 
-# 2. Review and fill in .proofrun/config.yaml (bundle ID, etc.)
+# 2. Check project readiness
+npx proofrun info
 
-# 3. Check environment
-npx proofrun doctor
+# 3. Read and fill in knowledge file placeholders
+npx proofrun knowledge --list
 
 # 4. Start a verification session
-npx proofrun session start --change my-feature
+npx proofrun session start --change my-feature --device <identifier>
 
 # 5. Record evidence (agent does this)
-npx proofrun step "Navigate to Library tab" --ac 1
-npx proofrun screenshot /tmp/screen.jpeg --ac 1
-npx proofrun judge --ac 1 --pass "Search bar visible at expected position"
+npx proofrun step "Navigate to Library tab" --criterion library-search
+npx proofrun screenshot /tmp/screen.jpeg --criterion library-search
+npx proofrun judge --criterion library-search --pass "Search bar visible at expected position"
 
 # 6. Generate report
 npx proofrun report --open
 
-# 7. Stop session (releases resources)
+# 7. Stop session (releases device lock)
 npx proofrun session stop
 ```
 
 ## How It Works
 
 1. **Agent implements a feature** using its normal workflow
-2. **Agent starts a proofrun session** — acquires a simulator slot and dev server port
-3. **Agent explores the app** using a simulator interaction tool (e.g., iosef)
-4. **Agent records clean evidence** — steps, screenshots, pass/fail judgments per acceptance criterion
+2. **Agent starts a proofrun session** — locks a device for exclusive use
+3. **Agent explores the app** using a platform interaction tool (e.g., iosef for iOS)
+4. **Agent records clean evidence** — steps, screenshots, pass/fail judgments per criterion
 5. **proofrun generates an interactive HTML report** with embedded screenshots
-6. **Human reviews the report** — accepts/rejects each AC, adds comments
+6. **Human reviews the report** — accepts/rejects each criterion, adds comments
 7. **Agent reads feedback** and addresses rejections
 
 ## Commands
 
 | Command | Description |
 |---------|-------------|
-| `proofrun init --preset <name>` | Initialize config from a platform preset |
+| `proofrun init` | Initialize config and knowledge templates |
 | `proofrun doctor` | Check environment readiness |
-| `proofrun session start --change <name>` | Start verification session |
-| `proofrun session stop` | Stop session, release resources |
+| `proofrun info` | Project readiness: config, knowledge, session, diagnostics |
+| `proofrun session start --change <name> --device <id>` | Start verification session |
+| `proofrun session stop` | Stop session, release device lock |
 | `proofrun session status` | Show active session info |
-| `proofrun context <change>` | Get context instructions for a change |
-| `proofrun step <desc> [--ac N]` | Record a verification step |
-| `proofrun screenshot <file> [--ac N]` | Attach a screenshot |
-| `proofrun judge --ac N --pass\|--fail\|--human <reason>` | Record judgment |
+| `proofrun step <desc> [--criterion <name>]` | Record a verification step |
+| `proofrun screenshot <file> [--criterion <name>]` | Attach a screenshot |
+| `proofrun judge --criterion <name> --pass\|--fail\|--human <reason>` | Record judgment |
 | `proofrun note <text>` | Add a freeform note |
+| `proofrun fix --criterion <name> --description <text>` | Record a code fix |
 | `proofrun evidence` | Show evidence summary |
-| `proofrun fix --ac N --description <text>` | Record a code fix |
+| `proofrun knowledge [topic]` | Read knowledge files |
 | `proofrun report [--open]` | Generate HTML report |
 
 ## License

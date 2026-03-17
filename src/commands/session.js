@@ -15,9 +15,9 @@ export function registerSession(program) {
 
   session
     .command('start')
-    .description('Start a new verification session — lock simulator by UDID')
+    .description('Start a new verification session — lock device by identifier')
     .requiredOption('--change <name>', 'Change name or verification label')
-    .requiredOption('--simulator <UDID>', 'Simulator UDID to lock for this session')
+    .requiredOption('--device <identifier>', 'Device identifier (UDID, AVD name, etc.) to lock for this session')
     .action(async (opts) => {
       const rawConfig = requireConfig('session.start');
       const config = withDefaults(rawConfig);
@@ -31,16 +31,16 @@ export function registerSession(program) {
       }
 
       const lockDir = resolve(projectRoot, LOCK_DIR);
-      const resourceName = `sim-${opts.simulator}`;
+      const resourceName = `dev-${opts.device}`;
 
-      // Check if simulator is already locked by another session
+      // Check if device is already locked by another session
       const lock = acquireLock(lockDir, resourceName);
       if (!lock) {
         // Find which session holds it
         const locks = listLocks(lockDir);
         const held = locks.find(l => l.resource === resourceName);
         const holder = held ? ` (held by session ${held.sessionId})` : '';
-        error('session.start', `Simulator ${opts.simulator} is already in use${holder}.`);
+        error('session.start', `Device ${opts.device} is already in use${holder}.`);
       }
 
       // Create session
@@ -53,11 +53,11 @@ export function registerSession(program) {
         change_name: opts.change,
         started_at: new Date().toISOString(),
         stopped_at: null,
-        simulator: opts.simulator,
+        device: opts.device,
       };
 
       saveSessionState(sessionDir, sessionState);
-      initEvidence(sessionDir, sessionId, opts.change, opts.simulator);
+      initEvidence(sessionDir, sessionId, opts.change, opts.device);
 
       // Write session ID to lock held file (replaces PID placeholder)
       writeFileSync(lock.heldPath, sessionId);
@@ -65,19 +65,19 @@ export function registerSession(program) {
       success('session.start', {
         session_id: sessionId,
         change_name: opts.change,
-        simulator: opts.simulator,
+        device: opts.device,
         session_dir: `.proofrun/sessions/${sessionId}`,
       }, (data) =>
         `Session started: ${data.session_id}\n` +
         `Change: ${data.change_name}\n` +
-        `Simulator: ${data.simulator}\n` +
+        `Device: ${data.device}\n` +
         `Session dir: ${data.session_dir}`
       );
     });
 
   session
     .command('stop')
-    .description('Stop the active verification session — release simulator lock')
+    .description('Stop the active verification session — release device lock')
     .action(async () => {
       const rawConfig = requireConfig('session.stop');
       const config = withDefaults(rawConfig);
@@ -91,10 +91,10 @@ export function registerSession(program) {
 
       const { sessionDir, state } = active;
 
-      // Release simulator lock
+      // Release device lock
       const lockDir = resolve(projectRoot, LOCK_DIR);
-      if (state.simulator) {
-        const heldPath = resolve(lockDir, `sim-${state.simulator}.lock.held`);
+      if (state.device) {
+        const heldPath = resolve(lockDir, `dev-${state.device}.lock.held`);
         releaseLock({ heldPath });
       }
 
@@ -111,12 +111,12 @@ export function registerSession(program) {
 
       success('session.stop', {
         session_id: active.sessionId,
-        released_simulator: state.simulator,
+        released_device: state.device,
         evidence_entries: entryCount,
         duration_seconds: duration,
       }, (data) =>
         `Session stopped: ${data.session_id}\n` +
-        `Released simulator: ${data.released_simulator}\n` +
+        `Released device: ${data.released_device}\n` +
         `Evidence entries: ${data.evidence_entries}\n` +
         `Duration: ${data.duration_seconds}s`
       );
@@ -144,14 +144,14 @@ export function registerSession(program) {
           active: true,
           session_id: active.sessionId,
           change_name: state.change_name,
-          simulator: state.simulator,
+          device: state.device,
           started_at: state.started_at,
           evidence_entries: entryCount,
           locked_resources: locks,
         }, (data) =>
           `Session: ${data.session_id} (active)\n` +
           `Change: ${data.change_name}\n` +
-          `Simulator: ${data.simulator}\n` +
+          `Device: ${data.device}\n` +
           `Started: ${data.started_at}\n` +
           `Evidence entries: ${data.evidence_entries}\n` +
           `Locks: ${data.locked_resources.length} held`

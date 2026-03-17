@@ -8,17 +8,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 export function registerInit(program) {
   program
     .command('init')
-    .description('Initialize proofrun config from a platform preset')
-    .requiredOption('--preset <name>', 'Platform preset (expo, react-native-cli)')
-    .action(async (opts) => {
-      const presetName = opts.preset;
-      const presetsDir = resolve(__dirname, '../../presets');
-      const presetDir = resolve(presetsDir, presetName);
-
-      if (!existsSync(presetDir)) {
-        error('init', `Unknown preset "${presetName}". Available: expo, react-native-cli`);
-      }
-
+    .description('Initialize proofrun config and knowledge templates')
+    .action(async () => {
       const proofrunDir = resolve(process.cwd(), '.proofrun');
       const configPath = resolve(proofrunDir, 'config.toml');
 
@@ -26,24 +17,26 @@ export function registerInit(program) {
         error('init', `.proofrun/config.toml already exists. Delete it first to reinitialize.`);
       }
 
+      const templatesDir = resolve(__dirname, '../../templates');
+
       // Create .proofrun/ directory
       mkdirSync(proofrunDir, { recursive: true });
 
-      // Copy config.toml from preset
-      const presetConfig = resolve(presetDir, 'config.toml');
-      if (existsSync(presetConfig)) {
-        writeFileSync(configPath, readFileSync(presetConfig, 'utf8'));
+      // Copy config.toml from templates
+      const templateConfig = resolve(templatesDir, 'config.toml');
+      if (existsSync(templateConfig)) {
+        writeFileSync(configPath, readFileSync(templateConfig, 'utf8'));
       }
 
-      // Copy knowledge/ directory from preset
+      // Copy knowledge/ directory from templates
       const knowledgeDir = resolve(proofrunDir, 'knowledge');
-      const presetKnowledge = resolve(presetDir, 'knowledge');
+      const templateKnowledge = resolve(templatesDir, 'knowledge');
       const copiedKnowledge = [];
-      if (existsSync(presetKnowledge)) {
+      if (existsSync(templateKnowledge)) {
         mkdirSync(knowledgeDir, { recursive: true });
-        const files = readdirSync(presetKnowledge).filter(f => f.endsWith('.md'));
+        const files = readdirSync(templateKnowledge).filter(f => f.endsWith('.md'));
         for (const file of files) {
-          copyFileSync(join(presetKnowledge, file), join(knowledgeDir, file));
+          copyFileSync(join(templateKnowledge, file), join(knowledgeDir, file));
           copiedKnowledge.push(file);
         }
       }
@@ -62,14 +55,13 @@ export function registerInit(program) {
       }
 
       success('init', {
-        preset: presetName,
         config_path: '.proofrun/config.toml',
         knowledge_dir: '.proofrun/knowledge',
         knowledge_files: copiedKnowledge,
         gitignore_entries_added: newEntries,
       }, (data) => {
         const lines = [
-          `Initialized proofrun with preset: ${data.preset}`,
+          `Initialized proofrun`,
           `Config: ${data.config_path}`,
           `Knowledge: ${data.knowledge_dir} (${data.knowledge_files.length} file(s): ${data.knowledge_files.join(', ')})`,
         ];
@@ -79,8 +71,8 @@ export function registerInit(program) {
         lines.push('');
         lines.push('Next steps:');
         lines.push('  1. Run `proofrun info` to verify setup');
-        lines.push('  2. Read environment.md knowledge and fill in placeholders');
-        lines.push('  3. Start a session: `proofrun session start --change <name> --simulator <UDID>`');
+        lines.push('  2. Read knowledge files and fill in placeholders');
+        lines.push('  3. Start a session: `proofrun session start --change <name> --device <identifier>`');
         return lines.join('\n');
       });
     });

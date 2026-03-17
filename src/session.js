@@ -50,12 +50,12 @@ export function findActiveSession(evidenceDir) {
   return null;
 }
 
-export function initEvidence(sessionDir, sessionId, changeName, simulatorUdid) {
+export function initEvidence(sessionDir, sessionId, changeName, deviceId) {
   const evidence = {
     session_id: sessionId,
     change_name: changeName,
     started_at: new Date().toISOString(),
-    simulator: simulatorUdid || null,
+    device: deviceId || null,
     entries: [],
   };
   writeFileSync(resolve(sessionDir, 'evidence.json'), JSON.stringify(evidence, null, 2));

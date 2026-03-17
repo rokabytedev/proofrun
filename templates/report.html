@@ -164,7 +164,7 @@ const feedbackState = loadFeedbackState();
 function render() {
   const d = REPORT_DATA;
   document.getElementById('meta').innerHTML =
-    `Change: <strong>${esc(d.change_name)}</strong> &middot; ${d.started_at?.slice(0,10) || ''} &middot; ${esc(typeof d.simulator === 'string' ? d.simulator : (d.simulator?.device_name || ''))}`;
+    `Change: <strong>${esc(d.change_name)}</strong> &middot; ${d.started_at?.slice(0,10) || ''} &middot; ${esc(typeof d.device === 'string' ? d.device : (d.device?.device_name || ''))}`;
 
   const s = d.summary;
   document.getElementById('summary').innerHTML = [

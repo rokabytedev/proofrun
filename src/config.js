@@ -57,7 +57,7 @@ export function validateConfig(config) {
 export function requireConfig(command) {
   const config = loadConfig();
   if (!config) {
-    console.error('Error: No .proofrun/config.toml found. Run `proofrun init --preset <name>` first.');
+    console.error('Error: No .proofrun/config.toml found. Run `proofrun init` first.');
     process.exit(1);
   }
   return config;

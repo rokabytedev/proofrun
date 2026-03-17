@@ -131,7 +131,7 @@ describe('findActiveSession', () => {
     mkdirSync(s2Dir, { recursive: true });
 
     saveSessionState(s1Dir, { session_id: 's1', status: 'stopped' });
-    saveSessionState(s2Dir, { session_id: 's2', status: 'active', simulator: 'UDID-ABC' });
+    saveSessionState(s2Dir, { session_id: 's2', status: 'active', device: 'UDID-ABC' });
 
     const result = findActiveSession(evidenceDir);
     assert.equal(result.sessionId, '20260102-bbbbbb');
@@ -149,7 +149,7 @@ describe('findActiveSession', () => {
   it('a session without PID is still active (no PID check)', () => {
     const sDir = resolve(evidenceDir, '20260101-nopid1');
     mkdirSync(sDir, { recursive: true });
-    saveSessionState(sDir, { session_id: 'nopid1', status: 'active', simulator: 'UDID-XYZ' });
+    saveSessionState(sDir, { session_id: 'nopid1', status: 'active', device: 'UDID-XYZ' });
 
     const result = findActiveSession(evidenceDir);
     assert.equal(result.sessionId, '20260101-nopid1');
@@ -170,16 +170,16 @@ describe('initEvidence', () => {
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it('stores simulator UDID string', () => {
+  it('stores device identifier string', () => {
     initEvidence(sessionDir, 'test-session', 'test-change', 'B1DBC6F9-5DB6-4DC8-9727-36EC26DDA466');
     const evidence = loadEvidence(sessionDir);
-    assert.equal(evidence.simulator, 'B1DBC6F9-5DB6-4DC8-9727-36EC26DDA466');
+    assert.equal(evidence.device, 'B1DBC6F9-5DB6-4DC8-9727-36EC26DDA466');
   });
 
-  it('stores null when no UDID provided', () => {
+  it('stores null when no device identifier provided', () => {
     initEvidence(sessionDir, 'test-session', 'test-change', null);
     const evidence = loadEvidence(sessionDir);
-    assert.equal(evidence.simulator, null);
+    assert.equal(evidence.device, null);
   });
 
   it('does not store port', () => {
