@@ -1,6 +1,6 @@
 ---
 name: proofrun
-description: AI agent verification workflow — verify mobile app behavior using simulator/emulator interaction, capture screenshot evidence, generate interactive HTML reports for human review. Use after implementing a change with UI acceptance criteria, OR when asked to verify app behavior (e.g., "check Chinese locale translations", "verify the recording flow works"). Triggers on verification requests, "/proofrun", "verify my changes", "test the implementation", "check if it works", or free-form app verification queries.
+description: AI agent verification workflow — verify mobile app behavior using simulator/emulator interaction, capture screenshot evidence, generate interactive HTML reports for human review. Use after implementing a change with UI acceptance criteria, OR when asked to verify app behavior. Triggers on verification requests, "/proofrun", "verify my changes", "test the implementation", "check if it works", or free-form app verification queries.
 ---
 
 # Proofrun — Mobile App Verification
