@@ -56,3 +56,12 @@ Policy: <!-- dedicated-pool | use-available — set after human chooses -->
   - If stale: use `--force-unlock` to take over
   - If active: ask human for approval before force-unlocking
 -->
+
+## Device Cleanup
+
+<!-- Agent: After verification is complete and feedback is received:
+  1. Check `proofrun device status` — only clean up devices that are FREE
+  2. If the device is free, shut down the simulator/emulator to free system RAM
+  3. Do NOT shut down a device that is locked by another session
+  4. Do NOT leave devices running after verification is complete
+-->

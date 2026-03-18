@@ -10,6 +10,7 @@ import { registerReport } from './commands/report.js';
 import { registerCarry } from './commands/carry.js';
 import { registerServe } from './commands/serve.js';
 import { registerDevice } from './commands/device.js';
+import { registerPlan } from './commands/plan.js';
 import { setJsonMode } from './output.js';
 
 const HELP_TEXT = `
@@ -39,6 +40,15 @@ DEVICE COMMANDS
 KNOWLEDGE COMMANDS
   proofrun knowledge --list              List available knowledge topics
   proofrun knowledge <topic>             Read a specific knowledge file
+
+PLAN COMMANDS
+  proofrun plan add                      Add a criterion to the verification plan
+    --criterion <name>                     Criterion name (required)
+    --spec <text>                          Spec text (required)
+    [--cases <case>]                       Test case (repeatable)
+    [--carried]                            Mark as carried from prior run
+  proofrun plan list                     List the verification plan with status
+  proofrun plan check                    Check plan coverage against evidence
 
 EVIDENCE COMMANDS
   proofrun prerequisite <description>    Record an environment prerequisite
@@ -151,6 +161,7 @@ export function createCli() {
   registerCarry(program);
   registerServe(program);
   registerDevice(program);
+  registerPlan(program);
 
   return program;
 }

@@ -1,4 +1,5 @@
 import { resolve } from 'node:path';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { success, error } from '../output.js';
 import { requireConfig, withDefaults } from '../config.js';
 import {
@@ -112,17 +113,43 @@ export function registerSession(program) {
       const entryCount = evidence?.entries?.length || 0;
       const duration = Math.round((new Date(stoppedAt) - new Date(state.started_at)) / 1000);
 
+      // Check for unfilled knowledge placeholders
+      const knowledgePlaceholders = scanKnowledgePlaceholders(config._knowledgeDir);
+
+      // Check for plan coverage gaps
+      const planGaps = checkPlanCoverage(sessionDir, evidence);
+
       success('session.stop', {
         session_id: active.sessionId,
         released_device: state.device,
         evidence_entries: entryCount,
         duration_seconds: duration,
-      }, (data) =>
-        `Session stopped: ${data.session_id}\n` +
-        `Released device: ${data.released_device}\n` +
-        `Evidence entries: ${data.evidence_entries}\n` +
-        `Duration: ${data.duration_seconds}s`
-      );
+        knowledge_placeholders: knowledgePlaceholders,
+        plan_gaps: planGaps,
+      }, (data) => {
+        const lines = [
+          `Session stopped: ${data.session_id}`,
+          `Released device: ${data.released_device}`,
+          `Evidence entries: ${data.evidence_entries}`,
+          `Duration: ${data.duration_seconds}s`,
+        ];
+        if (data.knowledge_placeholders.length > 0) {
+          lines.push('');
+          lines.push('Warning: Unfilled knowledge placeholders:');
+          for (const kp of data.knowledge_placeholders) {
+            lines.push(`  ${kp}`);
+          }
+          lines.push('Consider filling these while context is fresh.');
+        }
+        if (data.plan_gaps.length > 0) {
+          lines.push('');
+          lines.push('Warning: Unverified planned criteria:');
+          for (const gap of data.plan_gaps) {
+            lines.push(`  ✗ ${gap.criterion}: ${gap.spec}`);
+          }
+        }
+        return lines.join('\n');
+      });
     });
 
   session
@@ -204,4 +231,43 @@ function startSession(lock, opts, projectRoot, evidenceDir, config) {
     (data.reason ? `Reason: ${data.reason}\n` : '') +
     `Session dir: ${data.session_dir}`
   );
+}
+
+function scanKnowledgePlaceholders(knowledgeDir) {
+  if (!knowledgeDir || !existsSync(knowledgeDir)) return [];
+
+  const results = [];
+  try {
+    const files = readdirSync(knowledgeDir).filter(f => f.endsWith('.md'));
+    for (const file of files) {
+      const content = readFileSync(resolve(knowledgeDir, file), 'utf8');
+      if (/<!--\s*Agent:/i.test(content)) {
+        results.push(file);
+      }
+    }
+  } catch {
+    // Knowledge dir unreadable — skip silently
+  }
+  return results;
+}
+
+function checkPlanCoverage(sessionDir, evidence) {
+  const planPath = resolve(sessionDir, 'plan.json');
+  if (!existsSync(planPath)) return [];
+
+  let plan;
+  try {
+    plan = JSON.parse(readFileSync(planPath, 'utf8'));
+  } catch {
+    return [];
+  }
+
+  if (!Array.isArray(plan?.criteria)) return [];
+
+  const judgments = evidence?.entries?.filter(e => e.type === 'judgment') || [];
+  const judgedCriteria = new Set(judgments.map(j => j.criterion));
+
+  return plan.criteria
+    .filter(c => !c.carried && !judgedCriteria.has(c.criterion))
+    .map(c => ({ criterion: c.criterion, spec: c.spec }));
 }

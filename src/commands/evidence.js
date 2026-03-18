@@ -140,6 +140,13 @@ export function registerEvidence(program) {
       });
 
       const updatedEvidence = loadEvidence(active.sessionDir);
+
+      // Check for screenshots associated with this criterion
+      const screenshots = updatedEvidence.entries.filter(
+        e => e.type === 'screenshot' && e.criterion === opts.criterion
+      );
+      const screenshotWarning = screenshots.length === 0;
+
       success('judge', {
         entry_id: entry.id,
         type: 'judgment',
@@ -149,9 +156,14 @@ export function registerEvidence(program) {
         judgment_sequence: sequence,
         timestamp: entry.timestamp,
         total_entries: updatedEvidence.entries.length,
+        screenshot_warning: screenshotWarning,
       }, (data) => {
         const statusSymbol = data.status === 'pass' ? '✓' : data.status === 'fail' ? '✗' : '?';
-        return `Judgment [#${data.entry_id}] ${statusSymbol} ${data.criterion}: ${data.status}\n  ${data.reasoning}`;
+        let text = `Judgment [#${data.entry_id}] ${statusSymbol} ${data.criterion}: ${data.status}\n  ${data.reasoning}`;
+        if (data.screenshot_warning) {
+          text += `\nWarning: No screenshot recorded for criterion '${data.criterion}'. Judgments without screenshots are harder to review.`;
+        }
+        return text;
       });
     });
 

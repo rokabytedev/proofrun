@@ -42,9 +42,9 @@ Read relevant knowledge files. Only load topics relevant to your task.
 
 **First-time setup:** If knowledge files contain `<!-- Agent:` placeholders, you **MUST** fill them in before proceeding. Explore the project, find the answers, and update the files.
 
-### 2. Plan What to Verify
+### 2. Identify What to Verify
 
-**If verifying a change:** Find the change artifacts (PR description, task file, spec). Extract acceptance criteria and assign descriptive names:
+**If verifying a change:** Find the change artifacts (PR description, task file, spec). Extract **all** acceptance criteria — do not cherry-pick. Assign descriptive names:
 
 ```
 settings-translated     → All Settings screen labels show correct translations
@@ -56,19 +56,22 @@ Classify each as agent-verifiable or human-required. Read `knowledge/boundaries`
 
 **If given a free-form query:** Break it into discrete, verifiable criteria.
 
-Criteria can be added during exploration — you don't need to define them all upfront.
-
 ### 3. Set Up Environment
 
 Follow `knowledge/environment` and `knowledge/devices` for platform-specific instructions.
 
 #### Device Management
 
-1. **Read `knowledge/devices`** for the device management policy.
-   - If no policy is recorded yet, ask the human: **(1) Create a dedicated proofrun device pool** (recommended — no conflicts) or **(2) Use whatever device is available** (risk of conflicts).
-   - Record the choice in `knowledge/devices`.
+**STOP.** Read `knowledge/devices` for the device management policy. If no policy is recorded yet, you **MUST** ask the human before using any device — even in autonomous/autopilot mode. This is a human preference that cannot be assumed. Present the options:
 
-2. **Check device availability** before using any device:
+1. **(Recommended) Dedicated pool** — Create simulators/emulators specifically for proofrun. No risk of conflicts.
+2. **Use available** — Pick whatever device is available each time. Risk of conflicts with other agents or human work.
+
+Record the choice in `knowledge/devices`.
+
+After the policy is established:
+
+1. **Check device availability** before using any device:
    ```bash
    npx proofrun device status
    ```
@@ -77,7 +80,7 @@ Follow `knowledge/environment` and `knowledge/devices` for platform-specific ins
    - If a device is **actively locked** — do NOT take it. Ask the human for approval first.
    - **Never use a device without locking it** via `proofrun session start`.
 
-3. **If dedicated pool policy and no devices exist**, create a pool:
+2. **If dedicated pool policy and no devices exist**, create a pool:
    - Research the latest OS version (e.g., `xcrun simctl list runtimes`)
    - Create ~3 devices with form factor variety:
      - Large phone, latest gen (e.g., "(Proofrun-only) iPhone 17 Pro Max")
@@ -126,9 +129,36 @@ npx proofrun prerequisite "Device: iPhone 17 Pro Max, iOS 26.2"
 
 These are mandatory. Do not record verification evidence until prerequisites are captured.
 
-### 7. Verify Each Criterion (Explore-Then-Document)
+### 7. Create Verification Plan
 
-For each agent-verifiable criterion:
+Before recording any evidence, create a structured verification plan that maps **every** acceptance criterion to concrete test cases.
+
+For each acceptance criterion from the spec, task file, or PR:
+```bash
+npx proofrun plan add --criterion <name> --spec "<acceptance criterion text>" \
+  --cases "Test case 1" --cases "Test case 2"
+```
+
+**Test case design:** For each criterion, think about:
+- **Representative samples**: If a feature applies to N items (e.g., 15 sounds, 10 screens), test items from different categories — don't just test the first one.
+- **All entry points**: If a feature is reachable from multiple places (e.g., library, search, practice page), each entry point is a separate test case.
+- **Edge cases**: Single-item vs many-item, empty state, boundary conditions.
+
+Review the plan before proceeding:
+```bash
+npx proofrun plan list
+```
+
+If you are carrying criteria from a prior run:
+```bash
+npx proofrun plan add --criterion <name> --spec "<text>" --carried
+```
+
+**You MUST complete the plan before recording evidence.** The plan is your contract — it declares what you will verify and how thoroughly. Do not skip this step.
+
+### 8. Verify Each Criterion (Explore-Then-Document)
+
+For each agent-verifiable criterion in the plan:
 
 **Explore phase** (not recorded):
 - Use the interaction tool freely
@@ -144,6 +174,8 @@ npx proofrun screenshot /tmp/screen.jpeg --criterion settings-translated --note 
 npx proofrun judge --criterion settings-translated --pass "All 12 labels use Chinese text, no English fallback visible"
 ```
 
+**Every judgment MUST be preceded by at least one screenshot** showing the state being judged. Do not judge a criterion without capturing visual evidence first. A judgment without a screenshot is a claim without proof — the CLI will warn you if you try.
+
 **If a criterion fails**:
 1. Record the failure: `npx proofrun judge --criterion <name> --fail "<reasoning>"`
 2. Fix the code (if verifying your own implementation)
@@ -155,15 +187,16 @@ npx proofrun judge --criterion settings-translated --pass "All 12 labels use Chi
 npx proofrun judge --criterion audio-playback-quality --human "Cannot verify audio output quality — requires human listener"
 ```
 
-### 8. Check Progress
+### 9. Check Progress
 
 ```bash
+npx proofrun plan check
 npx proofrun evidence
 ```
 
-Review the criteria list. Confirm all have judgments before stopping the session.
+`plan check` shows which planned criteria still need verification. `evidence` shows the full evidence summary. Address all gaps before stopping the session.
 
-### 9. Stop Session
+### 10. Stop Session
 
 ```bash
 npx proofrun session stop
@@ -171,7 +204,11 @@ npx proofrun session stop
 
 Stop the session **before** generating the report. This releases the device lock immediately — don't hold the device hostage during report generation and human review, which can take a long time.
 
-### 10. Generate Report
+The CLI will warn you about:
+- Unfilled knowledge placeholders — fill them now while context is fresh
+- Unverified planned criteria — address gaps or justify skipping
+
+### 11. Generate Report
 
 ```bash
 npx proofrun report --change <name>
@@ -179,7 +216,7 @@ npx proofrun report --change <name>
 
 This generates a multi-run report that aggregates all sessions for the change. If multiple runs exist, the report shows tabs for each run with carried/re-verified/new badges on criteria.
 
-### 11. Serve Report for Live Feedback
+### 12. Serve Report for Live Feedback
 
 Start the feedback server so the reviewer can submit feedback directly from the browser. **Run this as a background task** so you get notified when feedback arrives:
 
@@ -197,16 +234,17 @@ Then wait for the background task to complete. When it does, read the feedback f
 
 To stop a running server manually: `npx proofrun serve --stop`
 
-### 12. Handle Feedback
+### 13. Handle Feedback
 
 When the background serve task completes (feedback received):
 
 1. Read `feedback.json` from the latest session directory
-2. Check the result:
-   - **LGTM**: All criteria approved. Shut down the simulator/emulator to free system RAM. Done!
+2. **Read the `top_level_comment` field.** If the reviewer requests additional criteria, broader coverage, or specific entry points to test — you MUST address these in the follow-up run. Top-level comments are high-priority guidance, not suggestions.
+3. Check the result:
+   - **LGTM**: All criteria approved. Check `proofrun device status` for the device you used. If it is **free**, shut it down to free system RAM. If it is **locked by another session**, leave it alone — the other agent will clean up when done. Done!
    - **Rejections**: For each rejected criterion, understand the comment and fix the issue. Then proceed to Follow-Up Runs.
 
-### 13. Follow-Up Runs
+### 14. Follow-Up Runs
 
 When addressing feedback from rejected criteria:
 
@@ -216,15 +254,18 @@ When addressing feedback from rejected criteria:
    ```
    npx proofrun session start --change <same-name> --device <id> --reason "fix <what-changed>"
    ```
-4. **Carry forward approved criteria** that your changes cannot affect:
+4. Create a new verification plan. **Carry forward approved criteria** that your changes cannot affect:
    ```
+   npx proofrun plan add --criterion <name> --spec "<text>" --carried
    npx proofrun carry --criterion <name> --reason "No code changes affect this"
    ```
    This creates an audit trail linking to the prior run's judgment. The carried criterion inherits its prior approval in the multi-run report.
 
-5. **Re-verify criteria** that your changes could affect — record fresh evidence and judgments.
+5. **Add new criteria** requested in the reviewer's `top_level_comment` to the plan.
 
-6. Stop the session, generate the report, and serve again for feedback.
+6. **Re-verify criteria** that your changes could affect — record fresh evidence and judgments.
+
+7. Stop the session, generate the report, and serve again for feedback.
 
 The multi-run report shows:
 - **Carried** criteria with gray badge and carry reason (auto-approved if prior run was approved)
@@ -236,13 +277,14 @@ The multi-run report shows:
 ## Principles
 
 - **CLI is dumb, you are smart**: The CLI manages locks, records evidence, and generates reports. YOU decide what to verify, how to navigate, and what passes/fails.
+- **Verify completely**: Create a verification plan that covers ALL spec criteria. Don't cherry-pick easy criteria or skip entry points. If the spec has 10 acceptance criteria, your plan has 10 criteria. The plan is your contract.
 - **Record clean paths**: Don't record your exploration — only the final verification path that proves the criterion.
-- **Screenshots are proof**: Take screenshots at key verification points.
+- **Screenshots are proof**: Every judgment needs at least one screenshot. No exceptions.
 - **One criterion at a time**: Verify, record evidence, judge. Then move to the next.
 - **Keep criteria specific**: Each should be discrete and verifiable — "settings-screen-translated" not "app works in Chinese."
 - **Human-in-the-loop**: If stuck after 2 attempts, ask the user. Don't spiral.
 - **Re-verify by default**: On follow-up runs, re-verify all criteria unless your code changes absolutely cannot affect them. When in doubt, re-verify.
-- **Be a good citizen**: Never use a device without locking it. Don't take over active locks without human approval. Shut down devices when done.
+- **Be a good citizen**: Never use a device without locking it. Don't take over active locks without human approval. Check device lock status before shutting down — only shut down free devices.
 - **Run `npx proofrun --help`** for complete command reference.
 
 ## Knowledge Management
@@ -272,3 +314,4 @@ Knowledge files at `.proofrun/knowledge/` are **working notes, not specification
 - If you find something contradicts a knowledge file, update the file
 - **Update immediately** when you discover something durable, not at the end of the session
 - Create new topic files for distinct knowledge areas
+- The CLI warns about unfilled placeholders at session stop — fill them while context is fresh
