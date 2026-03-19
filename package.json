@@ -1,7 +1,7 @@
 {
   "name": "proofrun",
   "version": "0.2.0",
-  "description": "CLI tool for AI agent verification workflows — capture evidence, generate interactive reports",
+  "description": "Agent skill for verifying app behavior — capture evidence, generate interactive reports for human review",
   "type": "module",
   "bin": {
     "proofrun": "./bin/proofrun.js"
@@ -9,6 +9,7 @@
   "files": [
     "bin/",
     "src/",
+    "!**/*.test.js",
     "skills/",
     "templates/"
   ],
@@ -16,14 +17,18 @@
     "test": "node --test --test-name-pattern='.*' src/*.test.js src/commands/*.test.js"
   },
   "keywords": [
-    "ai",
-    "agent",
+    "ai-agent",
+    "agent-skill",
     "verification",
-    "testing",
     "mobile",
     "evidence",
-    "report"
+    "report",
+    "proof-of-work",
+    "claude-code"
   ],
+  "engines": {
+    "node": ">=22"
+  },
   "author": "rokabytedev",
   "license": "MIT",
   "dependencies": {
