@@ -7,6 +7,10 @@
 
 Teach your coding agent to prove its own work.
 
+Works with:
+
+[![iOS](https://img.shields.io/badge/iOS-Simulator-000000?logo=apple)](https://developer.apple.com/xcode/) [![Android](https://img.shields.io/badge/Android-Emulator-3DDC84?logo=android&logoColor=white)](https://developer.android.com/studio) [![Web](https://img.shields.io/badge/Web-Browser-4285F4?logo=googlechrome&logoColor=white)](https://playwright.dev)
+
 ## The Problem
 
 Your coding agent says "implementation complete, all tests passing." You open the app — and it's not what you expected. The search bar is in the wrong place. The button doesn't do anything. The screen is half-translated.
@@ -23,7 +27,7 @@ Proofrun replaces guesswork with evidence. The agent actually opens your app, na
  You: "proofrun my changes"
   │
   ▼
- Agent locks a device ────► Simulator, emulator, or browser
+ Agent locks a device ────► iOS Simulator, Android Emulator, or Browser
   │
   ▼
  Agent interacts with app ─► Navigate, tap, scroll, type
