@@ -7,9 +7,9 @@
 
 Teach your coding agent to prove its own work.
 
-Works with:
+Works with agent tools:
 
-[![iOS](https://img.shields.io/badge/iOS-Simulator-000000?logo=apple)](https://developer.apple.com/xcode/) [![Android](https://img.shields.io/badge/Android-Emulator-3DDC84?logo=android&logoColor=white)](https://developer.android.com/studio) [![Web](https://img.shields.io/badge/Web-Browser-4285F4?logo=googlechrome&logoColor=white)](https://playwright.dev)
+[![iOS](https://img.shields.io/badge/iOS-Simulator-000000?logo=apple)](https://github.com/callstackincubator/agent-device) [![Android](https://img.shields.io/badge/Android-Emulator-3DDC84?logo=android&logoColor=white)](https://github.com/callstackincubator/agent-device) [![Web](https://img.shields.io/badge/Web-Browser-4285F4?logo=googlechrome&logoColor=white)](https://github.com/vercel-labs/agent-browser)
 
 ## The Problem
 
