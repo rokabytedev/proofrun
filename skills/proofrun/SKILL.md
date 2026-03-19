@@ -80,12 +80,17 @@ After the policy is established:
    - If a device is **actively locked** — do NOT take it. Ask the human for approval first.
    - **Never use a device without locking it** via `proofrun session start`.
 
-2. **If dedicated pool policy and no devices exist**, create a pool:
-   - Research the latest OS version (e.g., `xcrun simctl list runtimes`)
-   - Create ~3 devices with form factor variety:
+2. **If dedicated pool policy and no devices exist**, create a pool. See `knowledge/devices` for platform-specific creation commands.
+   - **iOS**: Check the latest runtime (`xcrun simctl list runtimes`), create ~3 simulators with form factor variety:
      - Large phone, latest gen (e.g., "(Proofrun-only) iPhone 17 Pro Max")
      - Small phone, prior gen (e.g., "(Proofrun-only) iPhone 16")
      - Tablet (e.g., "(Proofrun-only) iPad Air 11")
+   - **Android**: Download a system image via `sdkmanager`, create ~3 AVDs via `avdmanager` with form factor variety:
+     - Large phone (e.g., "(Proofrun-only) Pixel 9 Pro")
+     - Small phone (e.g., "(Proofrun-only) Pixel 8a")
+     - Tablet (e.g., "(Proofrun-only) Pixel Tablet")
+     - Use `arm64-v8a` on Apple Silicon, `x86_64` on Intel
+   - **Web**: No device pool needed — browser sessions are ephemeral. Use a logical identifier (e.g., `chromium-mobile`) for session locking.
    - Record the created devices in `knowledge/devices`
 
 #### Build & Dev Server

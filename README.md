@@ -46,7 +46,7 @@ npx proofrun session stop
 
 1. **Agent implements a feature** using its normal workflow
 2. **Agent starts a proofrun session** — locks a device for exclusive use
-3. **Agent explores the app** using a platform interaction tool (e.g., iosef for iOS)
+3. **Agent explores the app** using a platform interaction tool (e.g., agent-device for iOS/Android, agent-browser for web)
 4. **Agent records clean evidence** — steps, screenshots, pass/fail judgments per criterion
 5. **proofrun generates an interactive HTML report** with embedded screenshots
 6. **Human reviews the report** — accepts/rejects each criterion, adds comments

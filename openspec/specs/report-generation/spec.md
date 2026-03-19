@@ -31,7 +31,7 @@ The report MUST include one section per acceptance criterion.
   - Agent's reasoning for the judgment
   - All screenshots attached to this AC (zoomable)
   - All verification steps recorded for this AC
-  - Commands used (iosef commands for reproducibility)
+  - Commands used (interaction tool commands for reproducibility)
 
 ### Requirement: Interactive feedback controls
 Each AC section MUST include controls for human feedback.

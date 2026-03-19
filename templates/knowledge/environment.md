@@ -21,7 +21,14 @@ description: How to build, install, and run the app for verification.
 
 ### Android
 <!-- Agent: What command builds and installs the app on an Android emulator?
-     Gradle? Flutter? Other build tool? -->
+     Gradle? Flutter? Other build tool?
+
+     Prerequisites:
+     - ANDROID_HOME must be set (typically ~/Library/Android/sdk)
+     - cmdline-tools/latest/bin must be in PATH (for sdkmanager, avdmanager)
+     - Accept licenses non-interactively: yes | sdkmanager --licenses
+     - Install SDK packages as needed: sdkmanager --install "platform-tools" "emulator" etc.
+     - Create AVDs with avdmanager (see knowledge/devices for guidance) -->
 
 ### Web
 <!-- Agent: If this project has a mobile web target, how do you build and serve it? -->

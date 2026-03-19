@@ -11,34 +11,60 @@ All knowledge template files SHALL be platform-agnostic at the top level, with p
 - **AND** each platform section has `<!-- Agent: ... -->` placeholders for the agent to fill in
 
 ### Requirement: Simulators knowledge template
-The `simulators.md` template SHALL have separate sections for iOS Simulator, Android Emulator, and Mobile Web, each recommending the best known agent-first interaction tool.
+The `devices.md` template SHALL have separate sections for iOS Simulator, Android Emulator, and Web Browser, each with platform-specific device lifecycle guidance.
 
 #### Scenario: iOS section content
 - **WHEN** the agent reads the iOS Simulator section
-- **THEN** it finds the recommended tool is `iosef`
-- **AND** the install command: `npx skills add riwsky/iosef@ios-simulator-interaction -g`
-- **AND** placeholder instructions to fill in device management commands, available devices, and device IDs
+- **THEN** it finds guidance on creating simulators using the recommended interaction tool or `xcrun simctl`
+- **AND** the device pool naming convention `(Proofrun-only) <Device Name>` with form factor variety
+- **AND** placeholder instructions to fill in device identifiers (UDID, OS version)
 
 #### Scenario: Android section content
 - **WHEN** the agent reads the Android Emulator section
-- **THEN** it finds a note that no agent-first tool has been tested yet
-- **AND** instructions to use context7 or web search to find suitable tools
-- **AND** placeholder instructions to fill in emulator management and device IDs
+- **THEN** it finds guidance on creating AVDs using `avdmanager` CLI
+- **AND** the command to download system images via `sdkmanager`
+- **AND** the non-interactive AVD creation command (`echo "no" | avdmanager create avd ...`)
+- **AND** boot commands (via the recommended interaction tool or `emulator` CLI)
+- **AND** shutdown commands (`adb emu kill`)
+- **AND** the device pool naming convention `(Proofrun-only) <Device Name>` with form factor variety (large phone, small phone, tablet)
+- **AND** placeholder instructions to fill in AVD names, API levels, and device profiles
 
 #### Scenario: Web section content
-- **WHEN** the agent reads the Mobile Web section
-- **THEN** it finds a note that no agent-first tool has been tested yet
-- **AND** instructions to investigate browser automation options
-- **AND** placeholder instructions to fill in browser launch and viewport config
+- **WHEN** the agent reads the Web Browser section
+- **THEN** it finds a note that web browser sessions are ephemeral and managed by the interaction tool
+- **AND** guidance on using a logical device identifier (e.g., `chromium-mobile`, `safari-ios-sim`) for proofrun session locking
+- **AND** no AVD/simulator creation steps (the browser is managed by the tool)
 
 ### Requirement: Interaction knowledge template
-The `interaction.md` template SHALL have per-platform sections for interaction tool usage patterns.
+The `interaction.md` template SHALL have per-platform sections using a skill-only reference pattern.
 
-#### Scenario: Per-platform interaction sections
-- **WHEN** the agent reads `interaction.md`
-- **THEN** it finds sections for iOS, Android, and Web
-- **AND** each section states the recommended tool (or "TBD" if none tested)
-- **AND** each section has placeholders for project-specific patterns (element identifiers, naming conventions, animation timings)
+#### Scenario: Skill-only reference pattern
+- **WHEN** the agent reads any platform section in `interaction.md`
+- **THEN** it finds the recommended tool name
+- **AND** the skill install command (`npx skills add ...`)
+- **AND** the instruction "Follow the skill instructions for detailed usage"
+- **AND** it does NOT find inline command examples (no tool-specific commands like `view`, `tap`, `tree`, etc.)
+
+#### Scenario: iOS section content
+- **WHEN** the agent reads the iOS section
+- **THEN** it finds the recommended tool is `agent-device` (agent-first iOS + Android interaction)
+- **AND** the install command for the agent-device skill
+
+#### Scenario: Android section content
+- **WHEN** the agent reads the Android section
+- **THEN** it finds the recommended tool is `agent-device` (same tool as iOS)
+- **AND** the install command for the agent-device skill (same as iOS — one install covers both)
+
+#### Scenario: Web section content
+- **WHEN** the agent reads the Web section
+- **THEN** it finds the recommended tool is `agent-browser` (agent-first browser interaction)
+- **AND** the install command for the agent-browser skill
+- **AND** a note that Chromium device emulation works on any OS, while real Mobile Safari requires macOS + iOS Simulator + Appium
+
+#### Scenario: Project-specific patterns placeholder
+- **WHEN** the agent reads any platform section
+- **THEN** it finds `<!-- Agent: ... -->` placeholder instructions for project-specific patterns
+- **AND** the placeholders mention element identifier conventions, animation timings, and known quirks
 
 ### Requirement: Environment knowledge template
 The `environment.md` template SHALL guide the agent to discover the project's build system, dev server, and connection method without assuming any specific framework.
@@ -49,12 +75,19 @@ The `environment.md` template SHALL guide the agent to discover the project's bu
 - **AND** it instructs the agent to investigate the project to determine the build system
 - **AND** it has sections for: Project Structure, Build & Install, Dev Server, Connection
 
+#### Scenario: Android build section references SDK tools
+- **WHEN** the agent reads the Android Build & Install section of `environment.md`
+- **THEN** it finds references to `sdkmanager` for installing SDK packages
+- **AND** references to `avdmanager` for creating AVDs
+- **AND** a note about `ANDROID_HOME` and PATH prerequisites
+- **AND** a note about accepting licenses non-interactively (`yes | sdkmanager --licenses`)
+
 ### Requirement: Boundaries knowledge template
 The `boundaries.md` template SHALL describe agent-verifiable vs human-required categories in platform-agnostic terms.
 
 #### Scenario: Generic verification boundaries
 - **WHEN** the agent reads `boundaries.md`
-- **THEN** the agent-verifiable table uses generic terms (e.g., "interaction tool" not "iosef")
+- **THEN** the agent-verifiable table uses generic terms (e.g., "interaction tool" not any specific tool name)
 - **AND** the human-required table applies to any mobile platform
 
 ### Requirement: Context knowledge template
@@ -70,5 +103,5 @@ When a project targets multiple platforms (e.g., iOS + Android), the knowledge f
 
 #### Scenario: Agent fills multiple platform sections
 - **WHEN** the agent discovers the project targets both iOS and Android
-- **THEN** the agent fills in both the iOS and Android sections in `simulators.md` and `interaction.md`
+- **THEN** the agent fills in both the iOS and Android sections in `devices.md` and `interaction.md`
 - **AND** leaves the Web section as placeholder (or removes it if not relevant)

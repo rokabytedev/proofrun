@@ -41,6 +41,6 @@ The knowledge template `simulators.md` SHALL be renamed to `devices.md`.
 - **WHEN** `proofrun init` copies knowledge templates
 - **THEN** the devices template SHALL be named `devices.md` (not `simulators.md`)
 
-#### Scenario: No iosef reference in devices.md
+#### Scenario: No interaction tool references in devices.md
 - **WHEN** reading the `devices.md` template
-- **THEN** there SHALL be no interaction tool references (iosef, etc.) — those belong in `interaction.md`
+- **THEN** there SHALL be no specific interaction tool references — those belong in `interaction.md`

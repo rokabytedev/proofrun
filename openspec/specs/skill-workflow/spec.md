@@ -16,7 +16,7 @@ The SKILL.md SHALL NOT contain any platform-specific commands, tool names, or ex
 
 #### Scenario: iOS references removed
 - **WHEN** the SKILL.md is searched for iOS-specific content
-- **THEN** it does not contain `xcrun`, `simctl`, `iosef`, `expo`, `react-native`, or any iOS/framework-specific commands
+- **THEN** it does not contain `xcrun`, `simctl`, `expo`, `react-native`, or any iOS/framework-specific commands
 
 #### Scenario: Workflow references knowledge files
 - **WHEN** the workflow describes environment setup

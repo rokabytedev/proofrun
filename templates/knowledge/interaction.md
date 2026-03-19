@@ -6,44 +6,45 @@ description: How to interact with the running app — screenshots, tapping, find
 
 <!-- Agent: Fill in the sections below for each platform this project targets.
      Remove sections for platforms that don't apply.
-     If the interaction tool skill is installed, follow its instructions for detailed usage. -->
+     Each platform requires its interaction tool skill to be installed — follow the install command and skill instructions. -->
 
 ## iOS
 
-Recommended tool: **iosef** (agent-first iOS simulator interaction)
+Recommended tool: **agent-device** (agent-first iOS + Android interaction)
 
-Install: `npx skills add riwsky/iosef@ios-simulator-interaction -g`
+Install skill: `npx skills add callstackincubator/agent-device@agent-device -g`
 
-If the iosef skill is installed, follow its instructions for detailed usage. Key commands:
-- `iosef view` — capture screenshot of current screen
-- `iosef tree` — read accessibility tree (all elements with identifiers, labels, coordinates)
-- `iosef find --identifier <testID>` — find a specific element
-- `iosef tap --identifier <testID>` — tap an element
-- `iosef type "text"` — type text into focused field
+Follow the skill instructions for detailed usage.
 
 <!-- Agent: Add project-specific interaction patterns below:
-     - testID / accessibilityIdentifier naming conventions
+     - Element identifier naming conventions
      - Animation timings and wait requirements
      - Known quirks or workarounds -->
 
 ## Android
 
-Recommended tool: **TBD** (no agent-first tool tested yet)
+Recommended tool: **agent-device** (agent-first iOS + Android interaction — same tool as iOS, one install covers both platforms)
 
-<!-- Agent: Use context7 or web search to find a suitable agent-first
-     interaction tool for Android. Document its installation and key commands here.
+Install skill: `npx skills add callstackincubator/agent-device@agent-device -g`
 
-     Add project-specific patterns:
+Follow the skill instructions for detailed usage.
+
+<!-- Agent: Add project-specific interaction patterns below:
      - Element identifier naming conventions
-     - Interaction quirks -->
+     - Animation timings and wait requirements
+     - Known quirks or workarounds -->
 
 ## Web
 
-Recommended tool: **TBD** (browser automation)
+Recommended tool: **agent-browser** (agent-first browser interaction)
 
-<!-- Agent: Use context7 or web search to find a suitable agent-first
-     browser interaction tool. Document its installation and key commands here.
+Install skill: `npx skills add vercel-labs/agent-browser@agent-browser -g`
 
-     Add project-specific patterns:
+Follow the skill instructions for detailed usage.
+
+Note: Chromium device emulation works on any OS. Real Mobile Safari testing requires macOS + iOS Simulator + Appium (`npm install -g appium && appium driver install xcuitest`).
+
+<!-- Agent: Add project-specific interaction patterns below:
      - Selector strategy (data-testid, aria-label, etc.)
-     - Responsive breakpoints -->
+     - Responsive breakpoints
+     - Known quirks or workarounds -->

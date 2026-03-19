@@ -28,7 +28,7 @@
 `proofrun judge` MUST record the agent's pass/fail judgment for an AC with reasoning.
 
 #### Scenario: Pass judgment
-- **WHEN** `proofrun judge --ac 1 --pass "Search bar found at (398, 98) via iosef find"` is run
+- **WHEN** `proofrun judge --ac 1 --pass "Search bar found at (398, 98) via interaction tool find"` is run
 - **THEN** the judgment MUST be recorded with status "pass", the AC number, and the reasoning text
 
 #### Scenario: Fail judgment
