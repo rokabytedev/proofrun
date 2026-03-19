@@ -60,6 +60,6 @@ rules:
   tasks:
     - Keep tasks small and focused (single logical purpose)
     - Separate refactoring tasks from feature tasks
-  implementation:
-    - No user approval needed to start - proposal approval already granted
+    - No user approval needed to start implementation - proposal approval already granted
     - Fix any failing tests before declaring implementation complete
+    - After all implementation tasks pass, run proofrun to verify the change — use every spec scenario from this change's specs artifact as verification criteria
