@@ -62,4 +62,3 @@ rules:
     - Separate refactoring tasks from feature tasks
     - No user approval needed to start implementation - proposal approval already granted
     - Fix any failing tests before declaring implementation complete
-    - After all implementation tasks pass, run proofrun to verify the change — use every spec scenario from this change's specs artifact as verification criteria
