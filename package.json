@@ -1,7 +1,7 @@
 {
   "name": "proofrun",
   "version": "0.3.0",
-  "description": "Agent skill for verifying app behavior — capture evidence, generate interactive reports for human review",
+  "description": "Teach your coding agent to prove its own work — evidence, not claims",
   "type": "module",
   "bin": {
     "proofrun": "bin/proofrun.js"
