@@ -4,7 +4,7 @@
   "description": "Agent skill for verifying app behavior — capture evidence, generate interactive reports for human review",
   "type": "module",
   "bin": {
-    "proofrun": "./bin/proofrun.js"
+    "proofrun": "bin/proofrun.js"
   },
   "files": [
     "bin/",
@@ -28,6 +28,10 @@
   ],
   "engines": {
     "node": ">=22"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rokabytedev/proofrun"
   },
   "author": "rokabytedev",
   "license": "MIT",
