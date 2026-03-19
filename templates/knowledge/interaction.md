@@ -42,6 +42,8 @@ Install skill: `npx skills add vercel-labs/agent-browser@agent-browser -g`
 
 Follow the skill instructions for detailed usage.
 
+Use headed mode (`--headed` or `AGENT_BROWSER_HEADED=1`) for consistency with iOS Simulator and Android Emulator, which are always visible. This lets the human observe the verification in real time.
+
 Note: Chromium device emulation works on any OS. Real Mobile Safari testing requires macOS + iOS Simulator + Appium (`npm install -g appium && appium driver install xcuitest`).
 
 <!-- Agent: Add project-specific interaction patterns below:
