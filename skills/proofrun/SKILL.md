@@ -62,7 +62,7 @@ Follow `knowledge/environment` and `knowledge/devices` for platform-specific ins
 
 #### Device Management
 
-**STOP.** Read `knowledge/devices` for the device management policy. If no policy is recorded yet, you **MUST** ask the human before using any device — even in autonomous/autopilot mode. This is a human preference that cannot be assumed. Present the options:
+**STOP.** Read `knowledge/devices` for the device management policy. If no policy is recorded yet, you **MUST** use the `AskUserQuestion` tool before using any device — even in autonomous/autopilot mode. This is a human preference that cannot be assumed. Ask with these options:
 
 1. **(Recommended) Dedicated pool** — Create simulators/emulators specifically for proofrun. No risk of conflicts.
 2. **Use available** — Pick whatever device is available each time. Risk of conflicts with other agents or human work.
@@ -77,7 +77,7 @@ After the policy is established:
    ```
    - If a device is **free** — proceed to use it.
    - If a device is **stale** (PID dead or session stopped) — use `--force-unlock` to take over.
-   - If a device is **actively locked** — do NOT take it. Ask the human for approval first.
+   - If a device is **actively locked** — do NOT take it. Use the `AskUserQuestion` tool to get approval before proceeding.
    - **Never use a device without locking it** via `proofrun session start`.
 
 2. **If dedicated pool policy and no devices exist**, create a pool. See `knowledge/devices` for platform-specific creation commands.
@@ -287,7 +287,7 @@ The multi-run report shows:
 - **Screenshots are proof**: Every judgment needs at least one screenshot. No exceptions.
 - **One criterion at a time**: Verify, record evidence, judge. Then move to the next.
 - **Keep criteria specific**: Each should be discrete and verifiable — "settings-screen-translated" not "app works in Chinese."
-- **Human-in-the-loop**: If stuck after 2 attempts, ask the user. Don't spiral.
+- **Human-in-the-loop**: If stuck after 2 attempts, use the `AskUserQuestion` tool to get guidance. Don't spiral.
 - **Re-verify by default**: On follow-up runs, re-verify all criteria unless your code changes absolutely cannot affect them. When in doubt, re-verify.
 - **Be a good citizen**: Never use a device without locking it. Don't take over active locks without human approval. Check device lock status before shutting down — only shut down free devices.
 - **Run `npx proofrun --help`** for complete command reference.
