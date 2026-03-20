@@ -53,7 +53,7 @@ The agent drives the entire workflow. Proofrun is just the evidence locker.
 ## Install
 
 ```bash
-npx skills add rokabytedev/proofrun
+npx skills add rokabytedev/proofrun/skills
 ```
 
 That's it. The skill teaches the agent the entire verification workflow — when to trigger, how to capture evidence, how to handle feedback. You don't need to learn the CLI commands; the agent already knows them.
