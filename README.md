@@ -78,6 +78,20 @@ That's it. The skill teaches the agent the entire verification workflow — when
 
 Proofrun pairs naturally with spec-driven workflows like [OpenSpec](https://github.com/fission-ai/openspec). After implementing a change, the agent already has the acceptance criteria from your specs and tasks — proofrun turns those criteria into verified evidence with screenshots before you archive.
 
+To wire proofrun into your OpenSpec workflow, add this rule to the `tasks` section of your `openspec/config.yaml`:
+
+```yaml
+rules:
+  tasks:
+    # ... your existing task rules ...
+    # Proofrun verification
+    - >-
+      Add a single verification task: run proofrun after all implementation
+      tasks pass, using every spec scenario from this change's specs artifact
+      as an individual verification criterion. Do not enumerate the scenarios
+      in the task itself — just include the instruction for proofrun to do so.
+```
+
 ## What the Agent Does
 
 When triggered, the agent:
