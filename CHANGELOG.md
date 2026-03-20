@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/rokabytedev/proofrun/compare/proofrun-v0.3.0...proofrun-v0.3.1) (2026-03-20)
+
+
+### Bug Fixes
+
+* scope skills install path to avoid discovering internal skills ([7645f1b](https://github.com/rokabytedev/proofrun/commit/7645f1be8f83badbc7bda0313566b78a5579b350))
+
 ## [0.3.0](https://github.com/rokabytedev/proofrun/compare/proofrun-v0.2.0...proofrun-v0.3.0) (2026-03-19)
 
 

@@ -1,6 +1,6 @@
 {
   "name": "proofrun",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Teach your coding agent to prove its own work — evidence, not claims",
   "type": "module",
   "bin": {
